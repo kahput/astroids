@@ -4,80 +4,110 @@ project(program)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-if(MSVC)
-    set(CONFIG $<CONFIG>)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-else()
-    set(CONFIG ${CMAKE_BUILD_TYPE})
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/${CONFIG})
-endif()
-
-# Dependencies
-set(RAYLIB_VERSION 5.5)
-find_package(raylib ${RAYLIB_VERSION} QUIET) # QUIET or REQUIRED
-
-if (NOT raylib_FOUND) # If there's none, fetch and build raylib
-  include(FetchContent)
-  FetchContent_Declare(
-    raylib
-    DOWNLOAD_EXTRACT_TIMESTAMP OFF
-    URL https://github.com/raysan5/raylib/archive/refs/tags/${RAYLIB_VERSION}.tar.gz
-  )
-  FetchContent_GetProperties(raylib)
-  if (NOT raylib_POPULATED) # Have we downloaded raylib yet?
-    set(FETCHCONTENT_QUIET NO)
-    FetchContent_MakeAvailable(raylib)
-  endif()
-endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS  ON)
 
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.h" )
-add_executable(${PROJECT_NAME} ${SOURCES})
 
-target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
-target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+if(EMSCRIPTEN)
+    message(STATUS "Configuring for Web (Emscripten)...")
 
-if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
-    # Set source and destination directories
-    set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
+    add_executable("index" ${SOURCES})
+    target_include_directories("index" PRIVATE "./src/")
 
-    # Get all files in the assets directory
-    file(GLOB_RECURSE ASSET_FILES "${ASSETS_DIR}/*.*")
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    add_definitions(-DPLATFORM_WEB) 
 
-    # Create custom command to copy each asset file
-    foreach(ASSET_FILE ${ASSET_FILES})
-        # Get relative path to preserve folder structure
-        file(RELATIVE_PATH REL_PATH "${ASSETS_DIR}" "${ASSET_FILE}")
-        set(DEST_FILE "${CMAKE_BINARY_DIR}/bin/${CONFIG}/assets/${REL_PATH}")
+    set(RAYLIB_DIR "/home/kahput/raylib") 
+    
+    add_library(raylib STATIC IMPORTED)
+    set_target_properties(raylib PROPERTIES
+        IMPORTED_LOCATION "${RAYLIB_DIR}/src/web/libraylib.web.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${RAYLIB_DIR}/src"
+    )
+    
+    target_link_libraries("index" PRIVATE raylib)
 
-        get_filename_component(FILE_EXTENSION "${ASSET_FILE}" EXT)
-        if (${FILE_EXTENSION} STREQUAL ".glsl") 
-            get_filename_component(DEST_DIR ${DEST_FILE} DIRECTORY)
-            get_filename_component(DEST_NAME ${DEST_FILE} NAME_WE)
-            set(SPV_FILE ${DEST_DIR}/${DEST_NAME}.spv)
-            add_custom_command(
-                OUTPUT "${SPV_FILE}"
-                COMMAND glslc "${ASSET_FILE}" -o "${SPV_FILE}"
-                DEPENDS "${ASSET_FILE}"
-                COMMENT "Compiling GLSL shader: ${REL_PATH} -> ${REL_PATH}.spv"
-                VERBATIM
-            )
+    target_link_options("index" PRIVATE
+        "-sUSE_GLFW=3"
+        "-sWASM=1"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sASYNCIFY"
+    )
 
-            list(APPEND ASSET_OUTPUTS "${SPV_FILE}")
-        else()
-        add_custom_command(
-            OUTPUT "${DEST_FILE}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSET_FILE}" "${DEST_FILE}"
-            DEPENDS "${ASSET_FILE}"
-            COMMENT "Copying asset: ${REL_PATH}"
-            VERBATIM
+    if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
+        target_link_options("index" PRIVATE 
+            "--preload-file" "${CMAKE_SOURCE_DIR}/assets@/assets"
         )
+    endif()
 
-        list(APPEND ASSET_OUTPUTS "${DEST_FILE}")
+else()
+    message(STATUS "Configuring for Native Desktop...")
+    add_executable(${PROJECT_NAME} ${SOURCES})
+    target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
+
+    if(MSVC)
+        set(CONFIG $<CONFIG>)
+        set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    else()
+        set(CONFIG ${CMAKE_BUILD_TYPE})
+        set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/${CONFIG})
+    endif()
+
+    set(RAYLIB_VERSION 5.5)
+    find_package(raylib ${RAYLIB_VERSION} QUIET)
+
+    if (NOT raylib_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+            raylib
+            DOWNLOAD_EXTRACT_TIMESTAMP OFF
+            URL https://github.com/raysan5/raylib/archive/refs/tags/${RAYLIB_VERSION}.tar.gz
+        )
+        FetchContent_GetProperties(raylib)
+        if (NOT raylib_POPULATED)
+            set(FETCHCONTENT_QUIET NO)
+            FetchContent_MakeAvailable(raylib)
         endif()
-    endforeach()
+    endif()
+    
+    target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
-    # Create a custom target that depends on all copied assets
-    add_custom_target(copy_assets ALL DEPENDS ${ASSET_OUTPUTS})
+    if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
+        set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
+        file(GLOB_RECURSE ASSET_FILES "${ASSETS_DIR}/*.*")
+
+        foreach(ASSET_FILE ${ASSET_FILES})
+            file(RELATIVE_PATH REL_PATH "${ASSETS_DIR}" "${ASSET_FILE}")
+            set(DEST_FILE "${CMAKE_BINARY_DIR}/bin/${CONFIG}/assets/${REL_PATH}")
+
+            get_filename_component(FILE_EXTENSION "${ASSET_FILE}" EXT)
+            
+            # Logic: If .glsl, compile to .spv. Otherwise, copy.
+            if (${FILE_EXTENSION} STREQUAL ".glsl") 
+                get_filename_component(DEST_DIR ${DEST_FILE} DIRECTORY)
+                get_filename_component(DEST_NAME ${DEST_FILE} NAME_WE)
+                set(SPV_FILE ${DEST_DIR}/${DEST_NAME}.spv)
+                
+                add_custom_command(
+                    OUTPUT "${SPV_FILE}"
+                    COMMAND glslc "${ASSET_FILE}" -o "${SPV_FILE}"
+                    DEPENDS "${ASSET_FILE}"
+                    COMMENT "Compiling GLSL shader: ${REL_PATH} -> ${REL_PATH}.spv"
+                    VERBATIM
+                )
+                list(APPEND ASSET_OUTPUTS "${SPV_FILE}")
+            else()
+                add_custom_command(
+                    OUTPUT "${DEST_FILE}"
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSET_FILE}" "${DEST_FILE}"
+                    DEPENDS "${ASSET_FILE}"
+                    COMMENT "Copying asset: ${REL_PATH}"
+                    VERBATIM
+                )
+                list(APPEND ASSET_OUTPUTS "${DEST_FILE}")
+            endif()
+        endforeach()
+
+        add_custom_target(copy_assets ALL DEPENDS ${ASSET_OUTPUTS})
+    endif()
 endif()
