@@ -1,0 +1,15 @@
+# ninja log v7
+1	81	1767619745242713356	CMakeFiles/index.dir/src/core/memory.c.o	31b17dfa7220cb95
+0	81	1767621783215915671	CMakeFiles/index.dir/src/main.c.o	c14c90a71ae8d703
+1	88	1767619745241132445	CMakeFiles/index.dir/src/core/arena.c.o	f6f84937eead6856
+1	89	1767619745242442341	CMakeFiles/index.dir/src/core/hash_trie.c.o	62edad441a74fc82
+1	89	1767619745242578385	CMakeFiles/index.dir/src/core/logger.c.o	f5275a5f52bd1468
+2	91	1767619745242860641	CMakeFiles/index.dir/src/core/pool.c.o	b51f24a96dda8eb
+1	103	1767619745242268968	CMakeFiles/index.dir/src/core/astring.c.o	bbfba3a19b01fb13
+81	1914	1767621783296914945	index.html	8295626de33ad1f6
+0	229	1767623839780489462	build.ninja	b782efc9a497dd6b
+0	229	1767623839780489462	/home/kahput/projects/astroids/docs/cmake_install.cmake	b782efc9a497dd6b
+0	245	1767623839780489462	build.ninja	b782efc9a497dd6b
+0	245	1767623839780489462	/home/kahput/projects/astroids/docs/cmake_install.cmake	b782efc9a497dd6b
+0	92	1767623839784244889	CMakeFiles/index.dir/src/main.c.o	c14c90a71ae8d703
+92	2842	1767623839876244051	index.html	fc2ba9cd455c5bb0

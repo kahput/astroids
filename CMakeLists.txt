@@ -42,9 +42,6 @@ if(EMSCRIPTEN)
 
 else()
     message(STATUS "Configuring for Native Desktop...")
-    add_executable(${PROJECT_NAME} ${SOURCES})
-    target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
-
     if(MSVC)
         set(CONFIG $<CONFIG>)
         set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -52,6 +49,10 @@ else()
         set(CONFIG ${CMAKE_BUILD_TYPE})
         set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/${CONFIG})
     endif()
+
+    add_executable(${PROJECT_NAME} ${SOURCES})
+    target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
+
 
     set(RAYLIB_VERSION 5.5)
     find_package(raylib ${RAYLIB_VERSION} QUIET)
@@ -70,7 +71,7 @@ else()
         endif()
     endif()
     
-    target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+    target_link_libraries(${PROJECT_NAME} PRIVATE raylib m)
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
         set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
