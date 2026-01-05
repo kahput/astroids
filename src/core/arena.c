@@ -64,7 +64,7 @@ size_t arena_size(Arena *arena) {
 	return arena->offset;
 }
 
-void arena_clear(Arena *arena) {
+void arena_reset(Arena *arena) {
 	arena->offset = 0;
 }
 

@@ -52,6 +52,7 @@ else()
 
     add_executable(${PROJECT_NAME} ${SOURCES})
     target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -pedantic -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable)
 
 
     set(RAYLIB_VERSION 5.5)

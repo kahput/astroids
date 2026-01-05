@@ -20,7 +20,7 @@ void arena_pop(Arena *arena, size_t size);
 void arena_set(Arena *arena, size_t position);
 
 size_t arena_size(Arena *arena);
-void arena_clear(Arena *arena);
+void arena_reset(Arena *arena);
 
 ArenaTemp arena_begin_temp(Arena *);
 void arena_end_temp(ArenaTemp temp);

@@ -12,6 +12,8 @@ CMakeLists.txt.user
 CMakeLists.txt.cache
 CMakeLists.txt.local
 compile_commands.json
+*.ninja*
+**/.ninja*
 
 # Ignore IDE-specific files (common for popular IDEs)
 .vscode/
