@@ -11,10 +11,23 @@
 #define MAX_BULLETS 100
 #define BULLET_LIFTIME 1.f
 
+#define MAX_STARS 200
+#define STAR_SPEED_MIN 15.0f
+#define STAR_SPEED_MAX 50.0f
+
+typedef struct {
+	Vector2 position;
+	float speed;
+	float size;
+	Color color;
+} Star;
+static Star stars[MAX_STARS];
+
 const uint32_t WINDOW_WIDTH = 1280;
 const uint32_t WINDOW_HEIGHT = 720;
-const uint32_t TILE_SIZE = 32 * 20;
+const uint32_t TILE_SIZE = 32;
 const uint32_t PLAYER_SIZE = 64;
+#define ANIMATION_SPEED .1f
 
 typedef Rectangle TextureArea;
 
@@ -33,15 +46,33 @@ typedef struct {
 	Rectangle hitbox, hurtbox;
 
 	float health;
+	float movement_speed;
 
 	TextureArea area;
 	Color tint;
 	Texture2D *texture;
 } Entity;
 
+const char *FLASH_SHADER_CODE =
+	"#version 330\n"
+	"in vec2 fragTexCoord;\n"
+	"in vec4 fragColor;\n"
+	"out vec4 finalColor;\n"
+	"uniform sampler2D texture0;\n"
+	"void main()\n"
+	"{\n"
+	"    vec4 texelColor = texture(texture0, fragTexCoord);\n"
+	"    if (texelColor.a <= 0.1) discard;\n"
+	"    finalColor = vec4(1.0, 1.0, 1.0, texelColor.a);\n"
+	"}\n";
+
 void entity_draw(Entity sprite);
 void collision_shape_sync(Entity *sprite);
 float gui_slider(Arena *arena, String label, float value, float min, float max, float x, float y, float width);
+
+void background_initialize(void);
+void background_update(float dt);
+void background_draw(void);
 
 int main(void) {
 	Arena frame_arena = arena_create(MiB(4));
@@ -50,12 +81,18 @@ int main(void) {
 	InitAudioDevice();
 	SetTargetFPS(60);
 
+	background_initialize();
+
 	Texture atlas = LoadTexture("assets/sprites/asteroid_sprite.png");
+	Texture paddle = LoadTexture("assets/sprites/paddle.png");
 
 	Sound sfx_player_shoot = LoadSound("assets/sfx/shoot.wav");
 	Sound sfx_player_death = LoadSound("assets/sfx/player_death.wav");
+	Sound sfx_player_rocket = LoadSound("assets/sfx/player_rocket.wav");
 	Sound sfx_paddle_hurt = LoadSound("assets/sfx/paddle_hurt.wav");
 	Sound sfx_paddle_death = LoadSound("assets/sfx/paddle_death.wav");
+
+	Shader flash_shader = LoadShaderFromMemory(NULL, FLASH_SHADER_CODE);
 
 	Entity player = {
 		.active = true,
@@ -64,8 +101,11 @@ int main(void) {
 		.size = { .x = PLAYER_SIZE, .y = PLAYER_SIZE },
 		.rotation = 0,
 		.area = { 0, 0, TILE_SIZE, TILE_SIZE },
+		.tint = WHITE,
 		.texture = &atlas
 	};
+	uint32_t player_frame = 0;
+	float animation_timer = 0.0f;
 	player.collision_shape = (Rectangle){ 0, 0, .width = PLAYER_SIZE * .6f, .height = PLAYER_SIZE * .7f };
 
 	Entity paddle_bosses[2] = { 0 };
@@ -73,9 +113,12 @@ int main(void) {
 
 	for (int i = 0; i < 2; i++) {
 		paddle_bosses[i].active = true;
-		paddle_bosses[i].size = (Vector2){ PLAYER_SIZE * .5f, 4 * PLAYER_SIZE };
+		paddle_bosses[i].size = (Vector2){ PLAYER_SIZE, 4 * PLAYER_SIZE };
 		paddle_bosses[i].position = (Vector2){ (i == 0 ? PLAYER_SIZE : WINDOW_WIDTH - PLAYER_SIZE), WINDOW_HEIGHT * .5f };
+		paddle_bosses[i].velocity = (Vector2){ 0, i ? 1 : -1 };
 		paddle_bosses[i].tint = RAYWHITE;
+		paddle_bosses[i].area = (Rectangle){ 0, (TILE_SIZE * 2) * i, TILE_SIZE, TILE_SIZE * 2 };
+		paddle_bosses[i].texture = &paddle;
 
 		paddle_bosses[i].collision_shape = (Rectangle){ 0, 0, paddle_bosses[i].size.x, paddle_bosses[i].size.y };
 		paddle_bosses[i].health = paddle_boss_max_health * .5f;
@@ -97,11 +140,13 @@ int main(void) {
 	bool ui_toggle = false;
 	bool collision_shape_toggle = false;
 
+	Color DARK = { 20, 20, 20, 255 };
 	while (WindowShouldClose() == false) {
-		ClearBackground(BLACK);
-		BeginDrawing();
-
 		float dt = GetFrameTime();
+		background_update(dt);
+
+		BeginDrawing();
+		background_draw();
 
 		collision_shape_sync(&paddle_bosses[0]);
 		collision_shape_sync(&paddle_bosses[1]);
@@ -200,8 +245,32 @@ int main(void) {
 
 			if (IsKeyDown(KEY_W)) {
 				Vector2 thrust_direction = Vector2Rotate((Vector2){ 0, -1 }, player.rotation * DEG2RAD);
-				;
 				player.velocity = Vector2Add(player.velocity, Vector2Scale(thrust_direction, acceleration));
+
+				if (player_frame == 0) {
+					player_frame = 2;
+					animation_timer = 0;
+				}
+
+				animation_timer += dt;
+				if (animation_timer >= ANIMATION_SPEED) {
+					player_frame = (player_frame + 1) % 4;
+					animation_timer = 0.0f;
+				}
+
+				player.area.x = TILE_SIZE * player_frame;
+
+                // TODO: Proper rocket sound
+				// if (IsSoundPlaying(sfx_player_rocket) == false) {
+				// 	SetSoundPitch(sfx_player_shoot, GetRandomValue(80, 100) / 100.f);
+				// 	PlaySound(sfx_player_rocket);
+				// }
+
+			} else {
+				player_frame = 0;
+				player.area.x = 0;
+
+                // StopSound(sfx_player_rocket);
 			}
 
 			player.position = Vector2Add(player.position, player.velocity);
@@ -213,6 +282,16 @@ int main(void) {
 				Entity *boss = &paddle_bosses[boss_index];
 
 				if (boss->active) {
+					boss->position = Vector2Add(boss->position, Vector2Scale(boss->velocity, 3.f));
+
+					float half_w = boss->size.x * .5f;
+					float half_h = boss->size.y * .5f;
+
+					if (boss->position.y < half_h)
+						boss->velocity.y = -boss->velocity.y;
+					else if (boss->position.y > WINDOW_HEIGHT - half_h)
+						boss->velocity.y = -boss->velocity.y;
+
 					if (CheckCollisionRecs(player.collision_shape, paddle_bosses[boss_index].collision_shape)) {
 						player.respawn_timer = 1.f;
 						player.active = false;
@@ -262,7 +341,13 @@ int main(void) {
 					}
 				}
 
-				entity_draw(paddle_bosses[boss_index]);
+				if (boss->flash_timer) {
+					BeginShaderMode(flash_shader);
+					entity_draw(paddle_bosses[boss_index]);
+					EndShaderMode();
+
+				} else
+					entity_draw(paddle_bosses[boss_index]);
 			}
 		}
 
@@ -271,7 +356,7 @@ int main(void) {
 				entity_draw(bullets[index]);
 		}
 
-		Rectangle health_bar = { WINDOW_HEIGHT * .25f, 20.f, WINDOW_WIDTH * 2.f / 3.f, 50.f };
+		Rectangle health_bar = { WINDOW_HEIGHT * .25f, 20.f, WINDOW_WIDTH * 2.f / 3.f, 25.f };
 		float paddle_boss_health = paddle_bosses[0].health + paddle_bosses[1].health;
 		Rectangle boss_health_bar = { health_bar.x, health_bar.y, health_bar.width * paddle_boss_health / paddle_boss_max_health, health_bar.height };
 
@@ -319,7 +404,7 @@ void entity_draw(Entity sprite) {
 			dest,
 			origin,
 			sprite.rotation,
-			WHITE);
+			sprite.tint);
 
 	} else
 		DrawRectanglePro(dest, (Vector2){ sprite.size.x * .5f, sprite.size.y * .5f }, sprite.rotation, sprite.tint);
@@ -364,4 +449,44 @@ float gui_slider(Arena *arena, String label, float value, float min, float max, 
 void collision_shape_sync(Entity *sprite) {
 	sprite->collision_shape.x = sprite->position.x - sprite->collision_shape.width * .5f;
 	sprite->collision_shape.y = sprite->position.y - sprite->collision_shape.height * .5f;
+}
+
+void background_initialize(void) {
+	for (int i = 0; i < MAX_STARS; i++) {
+		stars[i].position = (Vector2){
+			.x = GetRandomValue(0, WINDOW_WIDTH),
+			.y = GetRandomValue(0, WINDOW_HEIGHT)
+		};
+
+		float depth = (float)GetRandomValue(0, 100) / 100.0f;
+		stars[i].speed = clamp(depth, STAR_SPEED_MIN, STAR_SPEED_MAX);
+
+		stars[i].size = (depth > 0.8f) ? 3.0f : 1.0f;
+
+		unsigned char brightness = (unsigned char)(100 + (depth * 155));
+		stars[i].color = (Color){ brightness, brightness, brightness, 255 };
+	}
+}
+
+void background_update(float dt) {
+	for (int i = 0; i < MAX_STARS; i++) {
+		stars[i].position.y += stars[i].speed * dt;
+
+		if (stars[i].position.y > WINDOW_HEIGHT) {
+			stars[i].position.y = -5;
+			stars[i].position.x = GetRandomValue(0, WINDOW_WIDTH);
+		}
+	}
+}
+
+void background_draw(void) {
+	DrawRectangleGradientV(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){ 5, 5, 20, 255 }, BLACK);
+
+	for (int star_index = 0; star_index < MAX_STARS; star_index++) {
+		if (stars[star_index].size > 1.5f) {
+			DrawRectangle(stars[star_index].position.x, stars[star_index].position.y, 2, 2, stars[star_index].color);
+		} else {
+			DrawPixel(stars[star_index].position.x, stars[star_index].position.y, stars[star_index].color);
+		}
+	}
 }
