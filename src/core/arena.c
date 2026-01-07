@@ -24,7 +24,7 @@ Arena arena_create_from_memory(void *buffer, size_t size) {
 	return arena;
 }
 
-void arena_free(Arena *arena) {
+void arena_destroy(Arena *arena) {
 	if (arena->memory)
 		free(arena->memory);
 

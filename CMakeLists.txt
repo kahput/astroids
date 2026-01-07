@@ -32,6 +32,11 @@ if(EMSCRIPTEN)
         "-sWASM=1"
         "-sALLOW_MEMORY_GROWTH=1"
         "-sASYNCIFY"
+        "-sTOTAL_STACK=64mb"
+# "-sASSERTIONS=2" 
+#     "-sSAFE_HEAP=1"
+#     "-sSTACK_OVERFLOW_CHECK=2"
+#     "-g" # Generate source maps to see C code in browser console
     )
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
@@ -52,7 +57,7 @@ else()
 
     add_executable(${PROJECT_NAME} ${SOURCES})
     target_include_directories(${PROJECT_NAME} PRIVATE "./src/")
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -pedantic -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable)
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -pedantic -fsanitize=address,bounds,leak -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable)
 
 
     set(RAYLIB_VERSION 5.5)
@@ -72,7 +77,8 @@ else()
         endif()
     endif()
     
-    target_link_libraries(${PROJECT_NAME} PRIVATE raylib m)
+    target_link_options(${PROJECT_NAME} PRIVATE "-fsanitize=address,bounds,leak")
+    target_link_libraries(${PROJECT_NAME} PRIVATE raylib m )
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/assets")
         set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
