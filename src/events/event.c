@@ -14,10 +14,10 @@ typedef struct event_listener_list {
 
 static EventListenerList layers[MAX_EVENT_TYPES];
 
-bool event_system_startup(void) { return true; }
-bool event_system_shutdown(void) { return false; }
+bool32 event_system_startup(void) { return true; }
+bool32 event_system_shutdown(void) { return false; }
 
-bool event_subscribe(uint16_t type_enum, PFN_on_event on_event) {
+bool32 event_subscribe(uint16_t type_enum, PFN_on_event on_event) {
 	if (type_enum == CORE_EVENT_NULL || type_enum > MAX_EVENT_TYPES) {
 		LOG_WARN("Event: type id[%d] outside valid range, ignoring subscribe request", type_enum);
 		return false;
@@ -32,12 +32,12 @@ bool event_subscribe(uint16_t type_enum, PFN_on_event on_event) {
 
 	return true;
 }
-bool event_unsubscribe(uint16_t event_type, PFN_on_event on_event) {
+bool32 event_unsubscribe(uint16_t event_type, PFN_on_event on_event) {
 	LOG_WARN("Event: function not implemented, ignoring unsubscribe request");
 	return false;
 }
 
-bool event_emit(Event *event) {
+bool32 event_emit(Event *event) {
 	if (event->header.type == CORE_EVENT_NULL || event->header.size >= MAX_EVENT_SIZE) {
 		LOG_WARN("Event: type id[%d] outside valid range, ignoring emit request", event->header.type);
 		return false;

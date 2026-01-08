@@ -12,11 +12,11 @@ typedef struct pool_slot {
 
 typedef struct pool {
 	PoolSlot *slots, *free_slots;
-	size_t slot_size;
+	usize slot_size;
 } Pool;
 
-Pool *allocator_pool(size_t slot_size, uint32_t capacity);
-Pool *allocator_pool_from_arena(Arena *arena, uint32_t capacity, size_t slot_size, size_t alignment);
+Pool *allocator_pool(usize slot_size, uint32_t capacity);
+Pool *allocator_pool_from_arena(Arena *arena, uint32_t capacity, usize slot_size, usize alignment);
 void pool_destroy(Pool *pool);
 
 void *pool_alloc(Pool *pool);

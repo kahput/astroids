@@ -1,4 +1,3 @@
-#include "boss.h"
 #include "common.h"
 
 #include <raylib.h>
@@ -12,6 +11,8 @@
 #include "game.h"
 #include "entity.h"
 #include "audio_manager.h"
+
+#include "paddle_boss.h"
 
 #define MAX_BULLETS 100
 #define BULLET_LIFTIME 1.f
@@ -75,6 +76,8 @@ int main(void) {
 		.window_width = 1280,
 		.window_height = 720,
 		.tile_size = TILE_SIZE,
+		.show_debug = false,
+		.show_ui = true,
 	};
 
 	InitWindow(context.window_width, context.window_height, "Astroids");
@@ -84,7 +87,7 @@ int main(void) {
 	audio_initialize();
 
 	Texture atlas = LoadTexture("assets/sprites/asteroid_sprite.png");
-	Texture paddle = LoadTexture("assets/sprites/paddle.png");
+	Texture paddle_texture = LoadTexture("assets/sprites/paddle.png");
 
 	Sound sfx_player_shoot = LoadSound("assets/sfx/shoot.wav");
 	Sound sfx_player_death = LoadSound("assets/sfx/player_death.wav");
@@ -108,8 +111,11 @@ int main(void) {
 	float animation_timer = 0.0f;
 	player.collision_shape = (Rectangle){ 0, 0, .width = PLAYER_SIZE * .6f, .height = PLAYER_SIZE * .7f };
 
-	BossEncounter paddle_encounter = { 0 };
-	boss_encounter_paddle_initialize(&context, &paddle_encounter, &paddle);
+	// BossEncounter paddle_encounter = { 0 };
+	// boss_encounter_paddle_initialize(&context, &paddle_encounter, &paddle_texture);
+
+	PaddleEncounter encounter = { 0 };
+	boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture);
 
 	Entity bullets[MAX_BULLETS] = { 0 };
 	uint32_t bullet_count = 0;
@@ -124,14 +130,12 @@ int main(void) {
 	float fire_rate = .2f;
 	float fire_timer = 0.0f;
 
-	bool ui_toggle = false;
-	bool collision_shape_toggle = false;
-
 	Color DARK = { 20, 20, 20, 255 };
 	while (WindowShouldClose() == false) {
 		context.dt = GetFrameTime();
 		background_update(context.dt);
 		audio_update(context.dt);
+		boss_encounter_paddle_update(&encounter, player.position, context.dt);
 
 		BeginDrawing();
 		background_draw();
@@ -145,17 +149,18 @@ int main(void) {
 			bullet->position = Vector2Add(bullet->position, bullet->velocity);
 			entity_sync_collision(bullet);
 
-			for (uint32_t boss_index = 0; boss_index < countof(paddle_encounter.bosses); ++boss_index) {
-				Boss *boss = &paddle_encounter.bosses[boss_index];
-				Entity *boss_entity = &boss->entity;
+			for (uint32_t paddle_index = 0; paddle_index < countof(encounter.paddles); ++paddle_index) {
+				Paddle *paddle = &encounter.paddles[paddle_index];
+				Entity *paddle_entity = &paddle->entity;
 
-				if (boss_entity->active) {
-					if (CheckCollisionRecs(bullet->collision_shape, boss_entity->collision_shape)) {
-						boss_apply_damage(boss, bullet->bullet_damage);
+				if (paddle_entity->active) {
+					if (CheckCollisionRecs(bullet->collision_shape, paddle_entity->collision_shape))
+						if (CheckCollisionRecs(bullet->collision_shape, paddle_entity->collision_shape)) {
+							boss_paddle_apply_damage(paddle, bullet->bullet_damage);
 
-						bullet->active = false;
-						break;
-					}
+							bullet->active = false;
+							break;
+						}
 				}
 			}
 			if (bullet->active == false)
@@ -179,7 +184,7 @@ int main(void) {
 				bullet->position.y = -half_h;
 		}
 
-		boss_encounter_paddle_update(&context, &paddle_encounter, player.position);
+		// boss_encounter_paddle_update(&context, &paddle_encounter, player.position);
 		if (player.active) {
 			if (IsKeyDown(KEY_D))
 				player.rotation += rotation_speed;
@@ -258,9 +263,12 @@ int main(void) {
 			entity_update_physics(&player, drag, context.dt);
 			entity_sync_collision(&player);
 
-			if (boss_encounter_paddle_check_collision(&paddle_encounter, &player)) {
+			if (boss_encounter_paddle_check_collision(&encounter, &player)) {
 				player.respawn_timer = 1.f;
 				player.active = false;
+				audio_loop_stop(LOOP_PLAYER_ROCKET);
+
+				// encounter = (PaddleEncounter){ 0 };
 
 				SetSoundPitch(sfx_player_death, GetRandomValue(80, 100) / 100.f);
 				PlaySound(sfx_player_death);
@@ -289,10 +297,13 @@ int main(void) {
 				player.velocity = (Vector2){ 0 };
 				player.rotation = 0;
 				player.active = true;
+
+				boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture);
 			}
 		}
 
-		boss_encounter_paddle_draw(&context, &paddle_encounter);
+		// boss_encounter_paddle_draw(&context, &paddle_encounter);
+		boss_encounter_paddle_draw(&encounter);
 
 		for (uint32_t index = 0; index < MAX_BULLETS; ++index) {
 			if (bullets[index].active == true)
@@ -300,27 +311,27 @@ int main(void) {
 		}
 
 		Rectangle health_bar = { WINDOW_HEIGHT * .25f, 20.f, WINDOW_WIDTH * 2.f / 3.f, 25.f };
-		Rectangle boss_health_bar = { health_bar.x, health_bar.y, health_bar.width * boss_fight_health_ratio(&paddle_encounter), health_bar.height };
+		Rectangle boss_health_bar = { health_bar.x, health_bar.y, health_bar.width * boss_encounter_paddle_health_ratio(&encounter), health_bar.height };
 
 		DrawRectangleRec(health_bar, RAYWHITE);
 		DrawRectangleRec(boss_health_bar, RED);
 
-		if (collision_shape_toggle) {
+		if (context.show_debug) {
 			DrawRectangleLinesEx(player.collision_shape, 1.f, RED);
 			// DrawRectangleLinesEx(paddle_bosses[0].collision_shape, 1.f, RED);
 			// DrawRectangleLinesEx(paddle_bosses[1].collision_shape, 1.f, RED);
 		}
 
-		if (ui_toggle) {
+		if (context.show_ui) {
 			rotation_speed = gui_slider(&context.frame_arena, S("Turn Speed"), rotation_speed, 1.0f, 10.0f, 20, 50, 200);
 			acceleration = gui_slider(&context.frame_arena, S("Engine Power"), acceleration, 0.01f, 1.0f, 20, 80, 200);
 			drag = gui_slider(&context.frame_arena, S("Friction (Drag)"), drag, 0.90f, 1.0f, 20, 110, 200);
 		}
 
 		if (IsKeyPressed(KEY_TAB))
-			ui_toggle = !ui_toggle;
+			context.show_ui = !context.show_ui;
 		if (IsKeyPressed(KEY_C))
-			collision_shape_toggle = !collision_shape_toggle;
+			context.show_debug = !context.show_debug;
 
 		EndDrawing();
 

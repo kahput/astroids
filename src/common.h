@@ -1,12 +1,33 @@
 #pragma once
 
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+
+typedef float float32;
+typedef double float64;
+
+typedef uintptr_t uintptr;
+typedef size_t usize;
+typedef ptrdiff_t size;
+
+typedef uint32_t bool32;
+
+#define true 1
+#define false 0
+
 #ifndef offsetof
-	#define offsetof(type, member) (size_t)(&(((type *)0)->member))
+	#define offsetof(type, member) (usize)(&(((type *)0)->member))
 #endif
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
@@ -52,6 +73,6 @@ static inline uint64_t aligned_address(uint64_t address, uint64_t alignment) {
 
 // TODO: Move this?
 typedef struct {
-	size_t size;
+	usize size;
 	char *content;
 } FileContent;

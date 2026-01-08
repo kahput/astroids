@@ -6,7 +6,7 @@
 #include <raymath.h>
 
 typedef struct {
-	bool active;
+	bool32 active;
 
 	float bullet_life_timer;
 	float bullet_damage;

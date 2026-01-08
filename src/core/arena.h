@@ -2,24 +2,24 @@
 
 #include "common.h"
 typedef struct arena {
-	size_t offset, capacity;
+	usize offset, capacity;
 	void *memory;
 } Arena;
 typedef struct {
 	struct arena *arena;
-	size_t position;
+	usize position;
 } ArenaTemp;
 
-Arena arena_create(size_t size);
-Arena arena_create_from_memory(void *buffer, size_t size);
+Arena arena_create(usize size);
+Arena arena_create_from_memory(void *buffer, usize size);
 void arena_destroy(Arena *arena);
 
-void *arena_push(Arena *arena, size_t size, size_t alignment, bool zero_memory);
+void *arena_push(Arena *arena, usize size, usize alignment, bool32 zero_memory);
 
-void arena_pop(Arena *arena, size_t size);
-void arena_set(Arena *arena, size_t position);
+void arena_pop(Arena *arena, usize size);
+void arena_set(Arena *arena, usize position);
 
-size_t arena_size(Arena *arena);
+usize arena_size(Arena *arena);
 void arena_reset(Arena *arena);
 
 ArenaTemp arena_begin_temp(Arena *);

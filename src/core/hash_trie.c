@@ -2,7 +2,7 @@
 #include "core/arena.h"
 #include "core/astring.h"
 
-void *hash_trie_traverse_key(Arena *arena, HashTrieNode **root, String key, size_t node_size) {
+void *hash_trie_traverse_key(Arena *arena, HashTrieNode **root, String key, usize node_size) {
 	HashTrieNode **node = root;
 
 	uint64_t hash = string_hash64(key);
@@ -23,7 +23,7 @@ void *hash_trie_traverse_key(Arena *arena, HashTrieNode **root, String key, size
 	return *node;
 }
 
-void *hash_trie_traverse_hash(Arena *arena, HashTrieNode **root, uint64_t hash, size_t node_size) {
+void *hash_trie_traverse_hash(Arena *arena, HashTrieNode **root, uint64_t hash, usize node_size) {
 	HashTrieNode **node = root;
 
 	for (uint64_t hash_index = hash; *node; hash_index <<= 2) {

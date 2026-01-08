@@ -8,7 +8,7 @@
 
 typedef struct {
 	LogLevel level;
-	bool quiet;
+	bool32 quiet;
 	uint32_t indent;
 } Logger;
 
@@ -26,7 +26,7 @@ const char *logger_level_to_string(LogLevel level) {
 void logger_set_level(LogLevel level) {
 	g_logger.level = level;
 }
-void logger_set_quiet(bool enable) {
+void logger_set_quiet(bool32 enable) {
 	g_logger.quiet = enable;
 }
 

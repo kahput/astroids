@@ -15,5 +15,5 @@ typedef struct hash_trie_node {
 #define hash_trie_lookup_hash(root, hash, type) ((type *)hash_trie_traverse_hash(NULL, (HashTrieNode **)(root), (hash), 0))
 #define hash_trie_insert_hash(arena, root, hash, type) ((type *)hash_trie_traverse_hash((arena), (HashTrieNode **)(root), (hash), sizeof(type)))
 
-void *hash_trie_traverse_key(struct arena *arena, HashTrieNode **root, String key, size_t node_size);
-void *hash_trie_traverse_hash(Arena *arena, HashTrieNode **root, uint64_t hash, size_t node_size);
+void *hash_trie_traverse_key(struct arena *arena, HashTrieNode **root, String key, usize node_size);
+void *hash_trie_traverse_hash(Arena *arena, HashTrieNode **root, uint64_t hash, usize node_size);

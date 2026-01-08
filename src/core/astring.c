@@ -12,7 +12,7 @@ String string_wrap_cstring(const char *string) {
 	return rv;
 }
 
-String string_create_from_arena(Arena *arena, size_t size) {
+String string_create_from_arena(Arena *arena, usize size) {
 	if (size == 0)
 		return (String){ 0 };
 
@@ -26,7 +26,7 @@ String string_create_from_arena(Arena *arena, size_t size) {
 	return rv;
 }
 
-bool string_equals(String a, String b) {
+bool32 string_equals(String a, String b) {
 	if (a.length != b.length)
 		return false;
 
@@ -175,7 +175,7 @@ String string_format(Arena *arena, String format, ...) {
 
 	// 2. Allocate exact memory
 	// +1 for the null terminator
-	size_t size = length + 1;
+	usize size = length + 1;
 	char *buffer = arena_push_array_zero(arena, char, size);
 
 	// 3. Pass Two: Write the formatted string to the buffer
@@ -186,7 +186,7 @@ String string_format(Arena *arena, String format, ...) {
 
 	return (String){
 		.data = buffer,
-		.length = (size_t)length,
+		.length = (usize)length,
 		.size = size
 	};
 }
@@ -234,18 +234,18 @@ String string_extension_from_path(struct arena *arena, String name) {
 	return extension;
 }
 
-size_t cstring_length(const char *string) {
+usize cstring_length(const char *string) {
 	uint8_t c;
-	size_t length = 0;
+	usize length = 0;
 	while ((c = string[length++])) {
 	}
 
 	return length - 1;
 }
 
-size_t cstring_nlength(const char *string, size_t max_length) {
+usize cstring_nlength(const char *string, usize max_length) {
 	uint8_t c;
-	size_t length = 0;
+	usize length = 0;
 	while (length < max_length && (c = string[length++])) {
 	}
 

@@ -14,4 +14,6 @@ typedef struct {
 	float tile_size;
 
 	Shader flash_shader;
+
+    bool32 show_debug, show_ui;
 } GameContext;

@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-Pool *allocator_pool(size_t slot_size, uint32_t capacity) {
-	if (capacity == 0 || slot_size < sizeof(size_t)) {
-		LOG_WARN("Allocator: pool size must fit size_t pointer");
+Pool *allocator_pool(usize slot_size, uint32_t capacity) {
+	if (capacity == 0 || slot_size < sizeof(usize)) {
+		LOG_WARN("Allocator: pool size must fit usize pointer");
 		return NULL;
 	}
 
@@ -27,9 +27,9 @@ Pool *allocator_pool(size_t slot_size, uint32_t capacity) {
 	return pool;
 }
 
-Pool *allocator_pool_from_arena(Arena *arena, uint32_t capacity, size_t slot_size, size_t alignment) {
-	if (capacity == 0 || slot_size < sizeof(size_t)) {
-		LOG_WARN("Allocator: pool size must fit size_t pointer");
+Pool *allocator_pool_from_arena(Arena *arena, uint32_t capacity, usize slot_size, usize alignment) {
+	if (capacity == 0 || slot_size < sizeof(usize)) {
+		LOG_WARN("Allocator: pool size must fit usize pointer");
 		return NULL;
 	}
 

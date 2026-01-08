@@ -16,19 +16,19 @@ typedef struct {
 } Event;
 #define EVENT_DEFINE(name) STATIC_ASSERT(sizeof(name) <= sizeof(Event))
 
-typedef bool (*PFN_on_event)(Event *event);
+typedef bool32 (*PFN_on_event)(Event *event);
 
-bool event_system_startup(void);
-bool event_system_shutdown(void);
+bool32 event_system_startup(void);
+bool32 event_system_shutdown(void);
 
 // TODO: Implement event queue
-// bool event_system_update(void);
+// bool32 event_system_update(void);
 
-bool event_subscribe(uint16_t event_type, PFN_on_event on_event);
-bool event_unsubscribe(uint16_t event_type, PFN_on_event on_event);
+bool32 event_subscribe(uint16_t event_type, PFN_on_event on_event);
+bool32 event_unsubscribe(uint16_t event_type, PFN_on_event on_event);
 
 #define event_create(T, type_id) ((T){ .header = { .type = type_id, .size = sizeof(T) } })
-bool event_emit(Event *event);
+bool32 event_emit(Event *event);
 
 typedef enum {
 	CORE_EVENT_NULL = 0,

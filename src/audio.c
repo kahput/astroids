@@ -6,7 +6,7 @@ typedef struct {
 	Sound sound;
 	float max_volume;
 	float volume; // Current volume (0.0 to 1.0)
-	bool active; // Target state (true = fade in, false = fade out)
+	bool32 active; // Target state (true = fade in, false = fade out)
 	float fade_speed; // How fast this specific sound changes
 } LoopState;
 
@@ -31,15 +31,12 @@ void audio_initialize(void) {
 	audio.clips[SFX_PLAYER_DEATH] = load_sound("assets/sfx/player_death.wav");
 	audio.clips[SFX_PADDLE_HURT] = load_sound("assets/sfx/paddle_hurt.wav");
 	audio.clips[SFX_PADDLE_DEATH] = load_sound("assets/sfx/paddle_death.wav");
+	audio.clips[SFX_BOSS_SIREN] = load_sound("assets/sfx/boss_siren.wav");
 
 	// 2. Load Loops & Configure Fade Speeds
 	// Rocket: Fades fast (snappy response)
 	audio.loops[LOOP_PLAYER_ROCKET].sound = load_sound("assets/sfx/rocket_loop.wav");
 	audio.loops[LOOP_PLAYER_ROCKET].fade_speed = 5.0f;
-
-	// Siren: Fades slow (cinematic)
-	audio.loops[LOOP_BOSS_SIREN].sound = load_sound("assets/sfx/boss_siren.mp3");
-	audio.loops[LOOP_BOSS_SIREN].fade_speed = 1.0f;
 
 	// Init defaults
 	for (int i = 0; i < LOOP_COUNT; i++) {
@@ -55,7 +52,7 @@ void audio_unload(void) {
 	for (int i = 0; i < LOOP_COUNT; i++)
 		UnloadSound(audio.loops[i].sound);
 
-    CloseAudioDevice();
+	CloseAudioDevice();
 }
 
 // --- The Magic: Central Update ---
@@ -68,12 +65,12 @@ void audio_update(float dt) {
 		// 1. Apply Fading Logic
 		if (loop->volume < target) {
 			loop->volume += loop->fade_speed * dt;
-            LOG_INFO("INCREASING: %.2f", loop->volume);
+			LOG_INFO("INCREASING: %.2f", loop->volume);
 			if (loop->volume > target)
 				loop->volume = target;
 		} else if (loop->volume > target) {
 			loop->volume -= loop->fade_speed * dt;
-            LOG_INFO("DECREASING: %.2f", loop->volume);
+			LOG_INFO("DECREASING: %.2f", loop->volume);
 			if (loop->volume < target)
 				loop->volume = target;
 		}
@@ -91,9 +88,10 @@ void audio_update(float dt) {
 	}
 }
 
-void audio_sfx_play(SoundId id, float volume) {
+void audio_sfx_play(SoundId id, float volume, bool32 varying_pitch) {
 	if (id < SFX_COUNT) {
-		SetSoundPitch(audio.clips[id], GetRandomValue(90, 110) / 100.0f);
+		if (varying_pitch)
+			SetSoundPitch(audio.clips[id], GetRandomValue(90, 100) / 100.0f);
 		SetSoundVolume(audio.clips[id], volume);
 		PlaySound(audio.clips[id]);
 	}

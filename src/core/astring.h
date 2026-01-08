@@ -7,7 +7,7 @@ struct arena;
 
 typedef struct {
 	char* data;
-	size_t length, size;
+	usize length, size;
 } String;
 
 #define S(s) \
@@ -18,9 +18,9 @@ typedef struct {
 #define STRING_START 0
 #define STRING_END UINT32_MAX
 
-String string_create_from_arena(Arena* arena, size_t size);
+String string_create_from_arena(Arena* arena, usize size);
 
-bool string_equals(String a, String b);
+bool32 string_equals(String a, String b);
 // Returns substring start index if true, else -1
 int32_t string_contains(String a, String b);
 
@@ -41,7 +41,7 @@ String string_extension_from_path(Arena* arena, String name);
 
 String string_wrap_cstring(const char* string);
 
-size_t cstring_length(const char*);
-size_t cstring_nlength(const char*, size_t);
+usize cstring_length(const char*);
+usize cstring_nlength(const char*, usize);
 
 char* cstring_null_terminated(Arena* arena, String string);

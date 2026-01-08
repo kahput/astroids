@@ -10,14 +10,14 @@
 
 static Arena scratch_arenas[2] = { 0 };
 
-Arena arena_create(size_t size) {
+Arena arena_create(usize size) {
 	Arena arena = { 0 };
 	arena.memory = malloc(size);
 	arena.capacity = size;
 	return arena;
 }
 
-Arena arena_create_from_memory(void *buffer, size_t size) {
+Arena arena_create_from_memory(void *buffer, usize size) {
 	Arena arena = { 0 };
 	arena.memory = buffer;
 	arena.capacity = size;
@@ -33,12 +33,12 @@ void arena_destroy(Arena *arena) {
 	arena->capacity = 0;
 }
 
-void *arena_push(Arena *arena, size_t size, size_t alignment, bool zero_memory) {
+void *arena_push(Arena *arena, usize size, usize alignment, bool32 zero_memory) {
 	ASSERT(alignment > 0 && ((alignment & (alignment - 1)) == 0));
 	uintptr_t current = (uintptr_t)arena->memory + arena->offset;
 	uintptr_t aligned = aligned_address(current, alignment);
 
-	size_t padding = aligned - current;
+	usize padding = aligned - current;
 
 	if (arena->offset + padding + size > arena->capacity) {
 		ASSERT_MESSAGE(false, "ARENA_OUT_OF_MEMORY");
@@ -52,15 +52,15 @@ void *arena_push(Arena *arena, size_t size, size_t alignment, bool zero_memory) 
 	return (void *)aligned;
 }
 
-void arena_pop(Arena *arena, size_t size) {
+void arena_pop(Arena *arena, usize size) {
 	arena->offset = size > arena->offset ? 0 : arena->offset - size;
 }
 
-void arena_set(Arena *arena, size_t position) {
+void arena_set(Arena *arena, usize position) {
 	arena->offset = position > arena->capacity ? arena->capacity : position;
 }
 
-size_t arena_size(Arena *arena) {
+usize arena_size(Arena *arena) {
 	return arena->offset;
 }
 
