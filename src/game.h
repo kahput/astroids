@@ -11,8 +11,6 @@ typedef struct {
 	float dt;
 	uint32_t window_width, window_height;
 
-	float tile_size;
-
 	Shader flash_shader;
 
     bool32 show_debug, show_ui;

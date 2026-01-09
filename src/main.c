@@ -1,4 +1,3 @@
-#include "common.h"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -9,6 +8,7 @@
 #include "core/astring.h"
 
 #include "game.h"
+#include "globals.h"
 #include "entity.h"
 #include "audio_manager.h"
 
@@ -31,9 +31,6 @@ static Star stars[MAX_STARS];
 
 const uint32_t WINDOW_WIDTH = 1280;
 const uint32_t WINDOW_HEIGHT = 720;
-const uint32_t TILE_SIZE = 32;
-const uint32_t PLAYER_SIZE = 64;
-#define ANIMATION_SPEED .1f
 
 typedef Rectangle TextureArea;
 
@@ -75,7 +72,6 @@ int main(void) {
 		.frame_arena = arena_create(MiB(4)),
 		.window_width = 1280,
 		.window_height = 720,
-		.tile_size = TILE_SIZE,
 		.show_debug = false,
 		.show_ui = true,
 	};
@@ -87,13 +83,15 @@ int main(void) {
 	audio_initialize();
 
 	Texture atlas = LoadTexture("assets/sprites/asteroid_sprite.png");
-	Texture paddle_texture = LoadTexture("assets/sprites/paddle.png");
+	Texture paddle_texture = LoadTexture("assets/sprites/boss_paddle.png");
 
 	Sound sfx_player_shoot = LoadSound("assets/sfx/shoot.wav");
 	Sound sfx_player_death = LoadSound("assets/sfx/player_death.wav");
 	Sound sfx_player_rocket = LoadSound("assets/sfx/player_rocket.wav");
 	Sound sfx_paddle_hurt = LoadSound("assets/sfx/paddle_hurt.wav");
 	Sound sfx_paddle_death = LoadSound("assets/sfx/paddle_death.wav");
+
+	Music boss_music_paddle = LoadMusicStream("assets/music/boss_music.wav");
 
 	context.flash_shader = LoadShaderFromMemory(NULL, FLASH_SHADER_CODE);
 
@@ -115,14 +113,14 @@ int main(void) {
 	// boss_encounter_paddle_initialize(&context, &paddle_encounter, &paddle_texture);
 
 	PaddleEncounter encounter = { 0 };
-	boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture);
+	boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture, &boss_music_paddle);
 
 	Entity bullets[MAX_BULLETS] = { 0 };
 	uint32_t bullet_count = 0;
 
-	float rotation_speed = 4.0f;
-	float acceleration = 0.2f;
-	float drag = 0.99f;
+	float rotation_speed = 4.5f;
+	float acceleration = 0.4f;
+	float drag = 0.95;
 
 	float bullet_speed = 15.f;
 	float bullet_base_damage = 1.4f;
@@ -136,6 +134,8 @@ int main(void) {
 		background_update(context.dt);
 		audio_update(context.dt);
 		boss_encounter_paddle_update(&encounter, player.position, context.dt);
+
+		UpdateMusicStream(boss_music_paddle);
 
 		BeginDrawing();
 		background_draw();
@@ -184,7 +184,7 @@ int main(void) {
 				bullet->position.y = -half_h;
 		}
 
-		// boss_encounter_paddle_update(&context, &paddle_encounter, player.position);
+		static bool32 disable_player_collision = false;
 		if (player.active) {
 			if (IsKeyDown(KEY_D))
 				player.rotation += rotation_speed;
@@ -204,21 +204,23 @@ int main(void) {
 					Vector2 aim_direction = Vector2Rotate((Vector2){ 0, -1 }, player.rotation * DEG2RAD);
 					Vector2 spawn_position = Vector2Add(player.position, Vector2Scale(aim_direction, player.size.y * 0.5f));
 
-					LOG_INFO("Player movespeed = %.2f", Vector2Length(player.velocity));
+					// LOG_INFO("Player movespeed = %.2f", Vector2Length(player.velocity));
 					float inverse_drag = 1 / (1 - drag);
 
 					float player_max_speed = (acceleration * drag) / (1 - drag);
 					float t = Vector2Length(player.velocity) / player_max_speed;
 
 					float damage_multiplier = 1.0f + t * 2.0f;
-					LOG_INFO("Damage multiplier = %.2f", damage_multiplier);
+					// LOG_INFO("Damage multiplier = %.2f", damage_multiplier);
 					*bullet = (Entity){
 						.active = true,
 						.bullet_life_timer = BULLET_LIFTIME,
 						.bullet_damage = bullet_base_damage * damage_multiplier,
 						.position = { spawn_position.x, spawn_position.y },
 						.velocity = { aim_direction.x * bullet_speed, aim_direction.y * bullet_speed },
-						.size = { 5.f, 10.f },
+						.area = { TILE_SIZE* 6, 0, TILE_SIZE,  TILE_SIZE},
+						.texture = &paddle_texture,
+						.size = { 32.f, 32.f },
 						.rotation = player.rotation,
 						.tint = WHITE,
 					};
@@ -263,16 +265,18 @@ int main(void) {
 			entity_update_physics(&player, drag, context.dt);
 			entity_sync_collision(&player);
 
-			if (boss_encounter_paddle_check_collision(&encounter, &player)) {
-				player.respawn_timer = 1.f;
-				player.active = false;
-				audio_loop_stop(LOOP_PLAYER_ROCKET);
+			if (disable_player_collision == false)
+				if (boss_encounter_paddle_check_collision(&encounter, &player)) {
+					StopMusicStream(boss_music_paddle);
+					player.respawn_timer = 1.f;
+					player.active = false;
+					audio_loop_stop(LOOP_PLAYER_ROCKET);
 
-				// encounter = (PaddleEncounter){ 0 };
+					// encounter = (PaddleEncounter){ 0 };
 
-				SetSoundPitch(sfx_player_death, GetRandomValue(80, 100) / 100.f);
-				PlaySound(sfx_player_death);
-			}
+					SetSoundPitch(sfx_player_death, GetRandomValue(80, 100) / 100.f);
+					PlaySound(sfx_player_death);
+				}
 
 			float half_w = player.size.x * .5f;
 			float half_h = player.size.y * .5f;
@@ -298,7 +302,7 @@ int main(void) {
 				player.rotation = 0;
 				player.active = true;
 
-				boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture);
+				boss_encounter_paddle_initialize(&context, &encounter, &paddle_texture, &boss_music_paddle);
 			}
 		}
 
@@ -316,11 +320,8 @@ int main(void) {
 		DrawRectangleRec(health_bar, RAYWHITE);
 		DrawRectangleRec(boss_health_bar, RED);
 
-		if (context.show_debug) {
-			DrawRectangleLinesEx(player.collision_shape, 1.f, RED);
-			// DrawRectangleLinesEx(paddle_bosses[0].collision_shape, 1.f, RED);
-			// DrawRectangleLinesEx(paddle_bosses[1].collision_shape, 1.f, RED);
-		}
+		if (context.show_debug)
+			DrawRectangleLinesEx(player.collision_shape, 1.f, disable_player_collision ? RED : GREEN);
 
 		if (context.show_ui) {
 			rotation_speed = gui_slider(&context.frame_arena, S("Turn Speed"), rotation_speed, 1.0f, 10.0f, 20, 50, 200);
@@ -332,12 +333,15 @@ int main(void) {
 			context.show_ui = !context.show_ui;
 		if (IsKeyPressed(KEY_C))
 			context.show_debug = !context.show_debug;
+		if (IsKeyPressed(KEY_N))
+			disable_player_collision = !disable_player_collision;
 
 		EndDrawing();
 
 		arena_reset(&context.frame_arena);
 	}
 
+	UnloadMusicStream(boss_music_paddle);
 	audio_unload();
 	UnloadShader(context.flash_shader);
 	CloseWindow();

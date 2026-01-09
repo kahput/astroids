@@ -5,10 +5,13 @@
 #include "core/logger.h"
 #include "entity.h"
 #include "fsm.h"
+#include "globals.h"
+#include <math.h>
 #include <raylib.h>
+#include <raymath.h>
 
 #define BALL_SPEED_INITIAL 600.0f
-#define BALL_SPEED_MAX 1200.0f
+#define BALL_SPEED_MAX 900.0f
 #define PADDLE_MOVE_SPEED 450.0f
 #define PADDLE_AI_REACTION_DELAY 0.0f
 
@@ -24,13 +27,13 @@ void paddle_death_enter(void *context);
 StateID paddle_death_update(void *context, float dt);
 void paddle_death_exit(void *context);
 
-typedef enum {
+enum PaddleState {
 	PADDLE_STATE_ENTERANCE,
 	PADDLE_STATE_PONG,
 	PADDLE_STATE_DEATH,
 
 	PADDLE_STATE_COUNT,
-} PaddleState;
+};
 
 static const char *stringify_state[PADDLE_STATE_COUNT] = {
 	[PADDLE_STATE_ENTERANCE] = "STATE_INTRO",
@@ -38,8 +41,9 @@ static const char *stringify_state[PADDLE_STATE_COUNT] = {
 	[PADDLE_STATE_DEATH] = "STATE_DEATH",
 };
 
-bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *encounter, Texture *texture) {
+bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *encounter, Texture *texture, Music *music) {
 	*encounter = (PaddleEncounter){ 0 };
+	encounter->music = music;
 
 	float max_health = 100.f;
 
@@ -49,12 +53,12 @@ bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *e
 		Paddle *paddle = &encounter->paddles[paddle_index];
 
 		paddle->entity.active = true;
-		paddle->entity.size = (Vector2){ context->tile_size * 2, context->tile_size * 8 };
+		paddle->entity.size = (Vector2){ TILE_SIZE * 2, TILE_SIZE * 8 };
 
 		paddle->entity.velocity = (Vector2){ 0, 0 };
 		paddle->entity.tint = WHITE;
 
-		paddle->entity.area = (Rectangle){ 0, (context->tile_size * 2) * paddle_index, context->tile_size, context->tile_size * 2 };
+		paddle->entity.area = (Rectangle){ (TILE_SIZE * 3) * paddle_index, 0, TILE_SIZE, TILE_SIZE * 4 };
 		paddle->entity.texture = texture;
 
 		paddle->entity.collision_shape = (Rectangle){ 0, 0, paddle->entity.size.x, paddle->entity.size.y };
@@ -96,25 +100,44 @@ void boss_encounter_paddle_update(PaddleEncounter *encounter, Vector2 player_pos
 	fsm_update(&encounter->state_machine, dt);
 
 	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
-		Paddle *boss = &encounter->paddles[paddle_index];
-		entity_sync_collision(&boss->entity);
+		Paddle *paddle = &encounter->paddles[paddle_index];
+
+		paddle->animation_timer += dt;
+		uint32_t total_frames = paddle->entity.area.y == 0 ? 3 : 5;
+		if (paddle->animation_timer >= ANIMATION_SPEED) {
+			paddle->animation_frame = (paddle->animation_frame + 1) % total_frames;
+			paddle->animation_timer = 0.0f;
+		}
+
+		uint32_t offset = 0;
+		if (paddle->entity.area.y == 0)
+			offset = paddle_index ? TILE_SIZE * 3 : 0;
+
+		paddle->entity.area.x = offset + (paddle->animation_frame * TILE_SIZE);
+
+		entity_sync_collision(&paddle->entity);
 	}
 }
 
 void boss_encounter_paddle_draw(PaddleEncounter *encounter) {
 	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
-		Paddle *boss = &encounter->paddles[paddle_index];
-		entity_draw(&boss->entity);
+		Paddle *paddle = &encounter->paddles[paddle_index];
+		if (paddle->entity.active)
+			entity_draw(&paddle->entity);
 
 		if (encounter->game_context->show_debug) {
-			DrawRectangleLinesEx(boss->entity.collision_shape, 1.f, RED);
+			DrawLineV(encounter->ball.position, encounter->player_position, YELLOW);
+			DrawCircle(paddle->entity.position.x, paddle->target_y, 5, GREEN);
+
+			DrawCircleV(paddle->entity.position, 3.f, GREEN);
+			DrawRectangleLinesEx(paddle->entity.collision_shape, 1.f, RED);
 
 			StateID current_state = fsm_state_get(&encounter->state_machine);
 
 			const char *state = stringify_state[current_state];
 			Vector2 position = {
-				.x = boss->entity.position.x - (MeasureText(state, 32) * .5f),
-				.y = boss->entity.position.y - (boss->entity.size.y * .5f) - 50.f,
+				.x = paddle->entity.position.x - (MeasureText(state, 32) * .5f),
+				.y = paddle->entity.position.y - (paddle->entity.size.y * .5f) - 50.f,
 			};
 			DrawText(stringify_state[current_state], position.x, position.y, 32, WHITE);
 		}
@@ -127,7 +150,7 @@ void boss_encounter_paddle_draw(PaddleEncounter *encounter) {
 
 		Color color = Fade(RED, flash * 0.5f);
 
-		float w_size = encounter->game_context->tile_size * 2.0f;
+		float w_size = TILE_SIZE * 2.0f;
 
 		DrawRectangle(0, 0, w_size, GetScreenHeight(), color);
 		DrawRectangle(GetScreenWidth() - w_size, 0, w_size, GetScreenHeight(), color);
@@ -142,17 +165,25 @@ void boss_encounter_paddle_draw(PaddleEncounter *encounter) {
 		DrawRing(encounter->ball.position, ring_size - 2, ring_size, 0, 360, 0, RED);
 	}
 
-	if (encounter->ball.active)
+	if (encounter->ball.active) {
 		DrawCircleV(encounter->ball.position, encounter->ball.radius, RED);
+
+		DrawCircleV(encounter->ball.position, 3.f, GREEN);
+	}
 }
 
 void boss_paddle_apply_damage(Paddle *boss, float damage) {
 	boss->flash_timer = 0.1f;
 	boss->health -= damage;
+
 	if (boss->health <= 0.0f) {
 		boss->entity.active = false;
 		audio_sfx_play(SFX_PADDLE_DEATH, 1.0f, true);
 	} else {
+		if (boss->health <= boss->max_health * .5f && boss->entity.area.y == 0) {
+			boss->entity.area.y += TILE_SIZE * 4;
+		}
+
 		audio_sfx_play(SFX_PADDLE_HURT, 1.0f, true);
 	}
 }
@@ -217,7 +248,12 @@ StateID paddle_enterance_update(void *context, float dt) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	encounter->active_scenario.timer += dt;
-	LOG_INFO("scenario timer = %.2f", encounter->active_scenario.timer);
+	// LOG_INFO("scenario timer = %.2f", encounter->active_scenario.timer);
+
+	if (encounter->active_scenario.timer >= 1.0f)
+		if (IsMusicStreamPlaying(*encounter->music) == false) {
+			PlayMusicStream(*encounter->music);
+		}
 
 	float half_time = encounter->active_scenario.duration * .5f;
 	if (encounter->active_scenario.timer > half_time) {
@@ -238,10 +274,10 @@ StateID paddle_enterance_update(void *context, float dt) {
 void paddle_enterance_exit(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
-	encounter->paddles[0].entity.collision_shape.width = encounter->game_context->tile_size * 2;
-	encounter->paddles[0].entity.collision_shape.height = encounter->game_context->tile_size * 8;
-	encounter->paddles[1].entity.collision_shape.width = encounter->game_context->tile_size * 2;
-	encounter->paddles[1].entity.collision_shape.height = encounter->game_context->tile_size * 8;
+	encounter->paddles[0].entity.collision_shape.width = TILE_SIZE * 2;
+	encounter->paddles[0].entity.collision_shape.height = TILE_SIZE * 8;
+	encounter->paddles[1].entity.collision_shape.width = TILE_SIZE * 2;
+	encounter->paddles[1].entity.collision_shape.height = TILE_SIZE * 8;
 
 	encounter->active_scenario = (ScenarioConfig){ 0 };
 }
@@ -249,7 +285,9 @@ void paddle_enterance_exit(void *context) {
 void paddle_pong_enter(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
-	encounter->ball.velocity = (Vector2){ -BALL_SPEED_INITIAL * .5f, BALL_SPEED_INITIAL * .5f };
+	float x_sign = encounter->player_position.x > encounter->ball.position.x ? .5f : -.5f;
+	float y_sign = encounter->player_position.y > encounter->ball.position.y ? .5f : -.5f;
+	encounter->ball.velocity = (Vector2){ BALL_SPEED_INITIAL * x_sign, BALL_SPEED_INITIAL * y_sign };
 	encounter->ball.active = true;
 }
 
@@ -275,69 +313,71 @@ StateID paddle_pong_update(void *context, float dt) {
 		}
 	}
 
-	for (int i = 0; i < 2; i++) {
-		Paddle *p = &encounter->paddles[i];
+	for (int paddle_index = 0; paddle_index < 2; paddle_index++) {
+		Paddle *paddle = &encounter->paddles[paddle_index];
 
-		if (!p->entity.active)
+		if (!paddle->entity.active)
 			continue;
 
-		float aim_offset = encounter->player_position.y > p->entity.position.y ? -p->entity.size.y * .33f : p->entity.size.y * .33f;
-		float target_y = encounter->ball.position.y + aim_offset;
-		float dist = target_y - p->entity.position.y;
+		float direction_x = (paddle_index == 0) ? 1.0f : -1.0f;
+		float half_h = paddle->entity.size.y * 0.5f;
 
-		// Move towards ball, capped by max speed
+		Vector2 desired_bounce_direction = Vector2Normalize(Vector2Subtract(encounter->player_position, encounter->ball.position));
+		bool32 player_on_correct_side =
+			(paddle_index == 0 && desired_bounce_direction.x > 0) ||
+			(paddle_index == 1 && desired_bounce_direction.x < 0);
+		bool32 direction_valid = fabsf(desired_bounce_direction.x) > 0.01f;
+
+		float target_paddle_y;
+		if (player_on_correct_side && direction_valid) {
+			float needed_offset_y = (direction_x * desired_bounce_direction.y) / desired_bounce_direction.x;
+
+			needed_offset_y = Clamp(needed_offset_y, -1.0f, 1.0f);
+
+			target_paddle_y = encounter->ball.position.y - (needed_offset_y * half_h);
+		} else
+			target_paddle_y = encounter->ball.position.y;
+
+		paddle->target_y = target_paddle_y;
+		float dist = target_paddle_y - paddle->entity.position.y;
 		float move = 0.0f;
-		if (fabsf(dist) > 10.0f) { // Deadzone to prevent jitter
+
+		if (fabsf(dist) > 10.0f) {
 			float dir = (dist > 0) ? 1.0f : -1.0f;
 			move = dir * PADDLE_MOVE_SPEED * dt;
 
-			// Don't overshoot
 			if (fabsf(move) > fabsf(dist))
 				move = dist;
 		}
 
-		p->entity.position.y += move;
+		paddle->entity.position.y += move;
 
-		// Clamp Paddle to Screen
-		float half_h = p->entity.size.y * 0.5f;
-		if (p->entity.position.y < half_h)
-			p->entity.position.y = half_h;
-		if (p->entity.position.y > GetScreenHeight() - half_h)
-			p->entity.position.y = GetScreenHeight() - half_h;
+		if (paddle->entity.position.y < half_h)
+			paddle->entity.position.y = half_h;
+		if (paddle->entity.position.y > GetScreenHeight() - half_h)
+			paddle->entity.position.y = GetScreenHeight() - half_h;
 
-		// B. BALL COLLISION
-		// Sync collision shape explicitly here so we can check immediately
-		entity_sync_collision(&p->entity);
+		entity_sync_collision(&paddle->entity);
 
-		if (CheckCollisionCircleRec(encounter->ball.position, encounter->ball.radius, p->entity.collision_shape)) {
-			// 1. Determine direction (Left paddle hits right, Right paddle hits left)
-			float dir_x = (i == 0) ? 1.0f : -1.0f;
-
-			// Only resolve if ball is actually moving towards the paddle (prevents sticking)
-			bool moving_towards = (i == 0 && encounter->ball.velocity.x < 0) || (i == 1 && encounter->ball.velocity.x > 0);
+		if (CheckCollisionCircleRec(encounter->ball.position, encounter->ball.radius, paddle->entity.collision_shape)) {
+			bool moving_towards = (paddle_index == 0 && encounter->ball.velocity.x < 0) || (paddle_index == 1 && encounter->ball.velocity.x > 0);
 
 			if (moving_towards) {
-				// 2. Calculate "English" (Reflection Angle)
-				// Hit Center = 0, Hit Top = -1, Hit Bottom = 1
-				float offset_y = (encounter->ball.position.y - p->entity.position.y) / half_h;
+				float offset_y = (encounter->ball.position.y - paddle->entity.position.y) / half_h;
+				const char *side[2] = { "left", "right" };
+				LOG_INFO("Paddle_%s.hit_offset_y = %.2f", side[paddle_index], offset_y);
 				offset_y = clamp(offset_y, -1.0f, 1.0f);
 
-				// 3. Set new Velocity
 				float current_speed = Vector2Length(encounter->ball.velocity);
 
-				// Speed up slightly on every hit (Intensity!)
-				current_speed = fminf(current_speed + 50.0f, BALL_SPEED_MAX);
+				current_speed = fminf(current_speed + 100.f, BALL_SPEED_MAX);
 
-				// Basic vector math:
-				// X is mostly constant speed, Y is determined by where we hit the paddle
-				encounter->ball.velocity.x = dir_x * current_speed * 0.8f; // Most energy in X
-				encounter->ball.velocity.y = offset_y * current_speed * 0.6f; // Some energy in Y
+				encounter->ball.velocity.x = direction_x;
+				encounter->ball.velocity.y = offset_y;
 
-				// Re-normalize to ensure consistent speed
 				encounter->ball.velocity = Vector2Scale(Vector2Normalize(encounter->ball.velocity), current_speed);
 
-				// 4. Effects
-				// audio_sfx_play(SFX_PADDLE_ENTER, 1.0f, true); // Or a specific bounce sound
+				// audio_sfx_play(SFX_PADDLE_ENTER, 1.0f, true);
 				// Optional: Flash the paddle white briefly?
 			}
 		}

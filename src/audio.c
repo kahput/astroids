@@ -65,12 +65,12 @@ void audio_update(float dt) {
 		// 1. Apply Fading Logic
 		if (loop->volume < target) {
 			loop->volume += loop->fade_speed * dt;
-			LOG_INFO("INCREASING: %.2f", loop->volume);
+			// LOG_INFO("INCREASING: %.2f", loop->volume);
 			if (loop->volume > target)
 				loop->volume = target;
 		} else if (loop->volume > target) {
 			loop->volume -= loop->fade_speed * dt;
-			LOG_INFO("DECREASING: %.2f", loop->volume);
+			// LOG_INFO("DECREASING: %.2f", loop->volume);
 			if (loop->volume < target)
 				loop->volume = target;
 		}

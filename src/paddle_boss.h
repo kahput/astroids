@@ -12,6 +12,10 @@ typedef struct {
 	float health;
 	float max_health;
 	float flash_timer;
+
+    uint32_t animation_frame; float animation_timer;
+
+	float target_y;
 } Paddle;
 
 typedef struct {
@@ -42,10 +46,12 @@ typedef struct {
 	Vector2 player_position;
 	Ball ball;
 
+    Music *music;
+
 	GameContext *game_context;
 } PaddleEncounter;
 
-bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *boss, Texture *texture);
+bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *encounter, Texture *texture, Music *music);
 void boss_encounter_paddle_update(PaddleEncounter *boss, Vector2 player_position, float dt);
 void boss_encounter_paddle_draw(PaddleEncounter *boss);
 
