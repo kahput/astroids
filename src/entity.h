@@ -8,20 +8,15 @@
 typedef struct {
 	bool32 active;
 
-	float bullet_life_timer;
-	float bullet_damage;
-	float respawn_timer;
-
 	Vector2 position;
 	Vector2 velocity;
 	Vector2 size;
 	float rotation;
 
 	Rectangle collision_shape;
-	Rectangle hitbox, hurtbox;
 
-	float health;
-	float movement_speed;
+    float bullet_damage;
+    float bullet_life_timer;
 
 	Rectangle area;
 	Color tint;

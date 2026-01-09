@@ -10,8 +10,8 @@
 #include <raylib.h>
 #include <raymath.h>
 
-#define BALL_SPEED_INITIAL 600.0f
-#define BALL_SPEED_MAX 900.0f
+#define BALL_SPEED_INITIAL 500.0f
+#define BALL_SPEED_MAX 700.0f
 #define PADDLE_MOVE_SPEED 450.0f
 #define PADDLE_AI_REACTION_DELAY 0.0f
 
@@ -41,13 +41,10 @@ static const char *stringify_state[PADDLE_STATE_COUNT] = {
 	[PADDLE_STATE_DEATH] = "STATE_DEATH",
 };
 
-bool32 boss_encounter_paddle_initialize(GameContext *context, PaddleEncounter *encounter, Texture *texture, Music *music) {
+bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *texture) {
 	*encounter = (PaddleEncounter){ 0 };
-	encounter->music = music;
 
 	float max_health = 100.f;
-
-	encounter->game_context = context;
 
 	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
 		Paddle *paddle = &encounter->paddles[paddle_index];
@@ -119,13 +116,14 @@ void boss_encounter_paddle_update(PaddleEncounter *encounter, Vector2 player_pos
 	}
 }
 
-void boss_encounter_paddle_draw(PaddleEncounter *encounter) {
+void boss_encounter_paddle_draw(PaddleEncounter *encounter, bool32 show_debug) {
 	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
 		Paddle *paddle = &encounter->paddles[paddle_index];
-		if (paddle->entity.active)
-			entity_draw(&paddle->entity);
+		if (paddle->entity.active == false)
+			continue;
 
-		if (encounter->game_context->show_debug) {
+		entity_draw(&paddle->entity);
+		if (show_debug) {
 			DrawLineV(encounter->ball.position, encounter->player_position, YELLOW);
 			DrawCircle(paddle->entity.position.x, paddle->target_y, 5, GREEN);
 
@@ -236,7 +234,7 @@ void paddle_enterance_enter(void *context) {
 		.duration = 2.5f
 	};
 
-	audio_sfx_play(SFX_BOSS_SIREN, 0.8f, false);
+	audio_sfx_play(SFX_BOSS_WARNING, 0.8f, false);
 
 	encounter->ball.active = false;
 	encounter->ball.position = (Vector2){ GetScreenWidth() * 0.5f, GetScreenHeight() * 0.5f };
@@ -251,9 +249,7 @@ StateID paddle_enterance_update(void *context, float dt) {
 	// LOG_INFO("scenario timer = %.2f", encounter->active_scenario.timer);
 
 	if (encounter->active_scenario.timer >= 1.0f)
-		if (IsMusicStreamPlaying(*encounter->music) == false) {
-			PlayMusicStream(*encounter->music);
-		}
+		audio_music_play(MUSIC_BOSS_PADDLE);
 
 	float half_time = encounter->active_scenario.duration * .5f;
 	if (encounter->active_scenario.timer > half_time) {
