@@ -8,8 +8,10 @@ typedef enum {
 
 	SFX_PADDLE_HURT,
 	SFX_PADDLE_DEATH,
+    SFX_PADDLE_HIT,
 
 	SFX_BOSS_WARNING,
+    SFX_BOSS_INTRO,
 
 	SFX_COUNT
 } SoundID;
@@ -20,7 +22,8 @@ typedef enum {
 } LoopID;
 
 typedef enum {
-	MUSIC_BOSS_PADDLE,
+	MUSIC_BOSS_PONG,
+    MUSIC_BOSS_BREAKOUT,
 
 	MUSIC_COUNT,
 } MusicID;

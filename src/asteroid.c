@@ -2,6 +2,7 @@
 #include "entity.h"
 #include "globals.h"
 #include <raylib.h>
+#include <raymath.h>
 
 static Vector2 variant_sizes[ASTEROID_VARIANT_COUNT] = {
 	[ASTEROID_VARIANT_LARGE] = { .x = TILE_SIZE * 4, TILE_SIZE * 4 },
@@ -12,10 +13,9 @@ static Vector2 variant_sizes[ASTEROID_VARIANT_COUNT] = {
 void asteroid_system_init(AsteroidSystem *sys, Texture *atlas) {
 	*sys = (AsteroidSystem){ 0 };
 	sys->texture = atlas;
-	sys->spawn_rate = 2.0f; // Spawn one every 2 seconds initially
+	sys->spawn_rate = 1.0f;
 }
 
-// Helper to find free slot
 static Asteroid *get_free_slot(AsteroidSystem *sys) {
 	for (int i = 0; i < MAX_ASTEROIDS; i++) {
 		if (!sys->asteroids[i].entity.active)
@@ -24,15 +24,15 @@ static Asteroid *get_free_slot(AsteroidSystem *sys) {
 	return NULL;
 }
 
-void asteroid_spawn_split(AsteroidSystem *sys, Vector2 pos, AsteroidVariant variant) {
-	Asteroid *a = get_free_slot(sys);
-	if (!a)
+void asteroid_spawn_split(AsteroidSystem *system, Vector2 pos, AsteroidVariant variant) {
+	Asteroid *asteroid = get_free_slot(system);
+	if (!asteroid)
 		return;
 
 	Vector2 size = variant_sizes[variant];
 
 	// Setup Entity
-	a->entity = (Entity){
+	asteroid->entity = (Entity){
 		.active = true,
 		.position = pos,
 		.size = size,
@@ -42,17 +42,24 @@ void asteroid_spawn_split(AsteroidSystem *sys, Vector2 pos, AsteroidVariant vari
 		.rotation = GetRandomValue(0, 360),
 	};
 
-	Vector2 direction = { (float)GetRandomValue(-100, 100), (float)GetRandomValue(-100, 100) };
+	Vector2 center = { WINDOW_WIDTH * .5f, WINDOW_HEIGHT * .5f };
+
+	float min = -200;
+	float max = 200;
+	asteroid->inital_target = Vector2Add(center, (Vector2){ (float)GetRandomValue(min, max), (float)GetRandomValue(min, max) });
+
+	Vector2 direction = Vector2Subtract(asteroid->inital_target, asteroid->entity.position);
 	direction = Vector2Normalize(direction);
 	float speed = GetRandomValue(ASTEROID_SPEED_MIN, ASTEROID_SPEED_MAX);
 	if (variant == ASTEROID_VARIANT_SMALL)
 		speed *= 1.5f;
 
-	a->velocity = Vector2Scale(direction, speed);
-	a->rotation_speed = GetRandomValue(-90, 90);
-	a->variant = variant;
+	asteroid->velocity = Vector2Scale(direction, speed);
+	asteroid->rotation_speed = GetRandomValue(-90, 90);
+	asteroid->variant = variant;
 
-	a->entity.collision_shape = (Rectangle){ 0, 0, size.x * 0.8f, size.y * 0.8f };
+	asteroid->entity.collision_active = true;
+	asteroid->entity.collision_shape = (Rectangle){ 0, 0, size.x * 0.8f, size.y * 0.8f };
 }
 
 void asteroid_spawn_random(AsteroidSystem *sys, int screen_w, int screen_h) {
@@ -82,7 +89,7 @@ void asteroid_spawn_random(AsteroidSystem *sys, int screen_w, int screen_h) {
 
 void asteroid_system_update(AsteroidSystem *sys, float dt) {
 	// 1. Spawning
-	if (sys->spawn_rate > 0) { // If 0, spawning is disabled (Boss Mode)
+	if (sys->spawn_rate > 0) {
 		sys->spawn_timer += dt;
 		if (sys->spawn_timer > sys->spawn_rate) {
 			sys->spawn_timer = 0;
@@ -118,10 +125,13 @@ void asteroid_system_update(AsteroidSystem *sys, float dt) {
 void asteroid_system_draw(AsteroidSystem *system, bool show_debug) {
 	for (int asteroid_index = 0; asteroid_index < MAX_ASTEROIDS; asteroid_index++) {
 		if (system->asteroids[asteroid_index].entity.active) {
-			entity_draw(&system->asteroids[asteroid_index].entity);
+			Asteroid *asteroid = &system->asteroids[asteroid_index];
 
-			if (show_debug) {
-				DrawRectangleLinesEx(system->asteroids[asteroid_index].entity.collision_shape, 1.0f, GREEN);
+			entity_draw(&asteroid->entity);
+
+			if (show_debug && asteroid->entity.collision_active) {
+				DrawRectangleLinesEx(asteroid->entity.collision_shape, 1.0f, GREEN);
+				DrawLineV(asteroid->entity.position, asteroid->inital_target, RED);
 			}
 		}
 	}

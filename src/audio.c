@@ -30,14 +30,19 @@ void audio_initialize(void) {
 
 	audio.clips[SFX_PLAYER_SHOOT] = load_sound("assets/sfx/shoot.wav");
 	audio.clips[SFX_PLAYER_DEATH] = load_sound("assets/sfx/player_death.wav");
+
 	audio.clips[SFX_PADDLE_HURT] = load_sound("assets/sfx/paddle_hurt.wav");
 	audio.clips[SFX_PADDLE_DEATH] = load_sound("assets/sfx/paddle_death.wav");
+	audio.clips[SFX_PADDLE_HIT] = load_sound("assets/sfx/paddle_hit.wav");
+
 	audio.clips[SFX_BOSS_WARNING] = load_sound("assets/sfx/boss_siren.wav");
+	audio.clips[SFX_BOSS_INTRO] = load_sound("assets/music/phase_two_intro.wav");
 
 	audio.loops[LOOP_PLAYER_ROCKET].sound = load_sound("assets/sfx/rocket_loop.wav");
 	audio.loops[LOOP_PLAYER_ROCKET].fade_speed = 5.0f;
 
-	audio.music[MUSIC_BOSS_PADDLE] = LoadMusicStream("assets/music/boss_music.wav");
+	audio.music[MUSIC_BOSS_PONG] = LoadMusicStream("assets/music/boss_music.wav");
+	audio.music[MUSIC_BOSS_BREAKOUT] = LoadMusicStream("assets/music/phase_two_main.wav");
 
 	for (int i = 0; i < LOOP_COUNT; i++) {
 		audio.loops[i].volume = 0.0f;

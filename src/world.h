@@ -4,7 +4,7 @@
 #include "common.h"
 #include "core/arena.h"
 #include "player.h"
-#include "paddle_boss.h"
+#include "pong_boss.h"
 #include "weapon.h"
 #include <raylib.h>
 
@@ -20,7 +20,7 @@ typedef struct {
 typedef enum {
 	GAME_PHASE_MENU,
 	GAME_PHASE_ASTEROIDS,
-	GAME_PHASE_PONG,
+	GAME_PHASE_BOSS,
 	GAME_PHASE_WIN,
 	GAME_PHASE_LOSE,
 	GAME_PHASE_COUNT,

@@ -12,7 +12,10 @@ typedef enum {
 typedef struct {
 	Entity entity;
 	AsteroidVariant variant;
+
+    Vector2 inital_target;
 	Vector2 velocity;
+
 	float rotation_speed;
 } Asteroid;
 

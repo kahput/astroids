@@ -1,7 +1,3 @@
-#include <raylib.h>
-#include <raymath.h>
-#include "core/arena.h"
-
 #include "audio_manager.h"
 #include "world.h"
 

@@ -16,12 +16,12 @@ bool32 weapon_system_init(BulletSystem *system, Texture *texture) {
 	return true;
 }
 
-bool32 weapon_bullet_spawn(BulletSystem *sys, Vector2 spawn_position, float rotation, Vector2 direction, float speed, float damage_multiplier) {
+bool32 weapon_bullet_spawn(BulletSystem *system, Vector2 spawn_position, float rotation, Vector2 direction, float speed, float damage_multiplier) {
 	Bullet *bullet = NULL;
 
-	for (int i = 0; i < MAX_BULLETS; i++) {
-		if (sys->bullets[i].entity.active == false) {
-			bullet = &sys->bullets[i];
+	for (int bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++) {
+		if (system->bullets[bullet_index].entity.active == false) {
+			bullet = &system->bullets[bullet_index];
 			break;
 		}
 	}
@@ -32,15 +32,16 @@ bool32 weapon_bullet_spawn(BulletSystem *sys, Vector2 spawn_position, float rota
 			.position = spawn_position,
 			.velocity = Vector2Scale(direction, speed),
 			.rotation = rotation,
-			.texture = sys->texture,
+			.texture = system->texture,
 			.area = { TILE_SIZE * 6, 0, TILE_SIZE, TILE_SIZE },
 			.size = { 16.f, 32.f },
 			.tint = ORANGE,
 		};
 
-		bullet->damage = sys->base_damage * damage_multiplier;
+		bullet->damage = system->base_damage * damage_multiplier;
 		bullet->life_timer = 1.0f;
 
+		bullet->entity.collision_active = true;
 		bullet->entity.collision_shape = (Rectangle){ 0, 0, bullet->entity.size.x, bullet->entity.size.y };
 
 		audio_sfx_play(SFX_PLAYER_SHOOT, 1.0f, true);
@@ -82,13 +83,14 @@ void weapon_bullets_update(BulletSystem *sys, float dt) {
 }
 
 void weapon_bullets_draw(BulletSystem *weapon_system, bool show_debug) {
-	for (int i = 0; i < MAX_BULLETS; i++) {
-		if (weapon_system->bullets[i].entity.active) {
-			entity_draw(&weapon_system->bullets[i].entity);
+	for (int bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++) {
+		Bullet *bullet = &weapon_system->bullets[bullet_index];
+		if (bullet->entity.active) {
+			entity_draw(&bullet->entity);
 
-            if (show_debug) {
-                DrawRectangleLinesEx(weapon_system->bullets[i].entity.collision_shape, 1.0f, GREEN);
-            }
-        }
+			if (show_debug && bullet->entity.collision_active) {
+				DrawRectangleLinesEx(bullet->entity.collision_shape, 1.0f, GREEN);
+			}
+		}
 	}
 }

@@ -1,11 +1,11 @@
 #include "world.h"
 #include "asteroid.h"
 #include "audio_manager.h"
+#include "common.h"
 #include "core/astring.h"
 #include "core/logger.h"
 #include "fsm.h"
 #include "globals.h"
-#include "paddle_boss.h"
 #include "player.h"
 #include "weapon.h"
 #include <raylib.h>
@@ -94,12 +94,12 @@ void world_init(GameWorld *world, Texture *atlas, Texture *paddle_tex, Shader *w
 
 	fsm_state_add(&world->state_machine, GAME_PHASE_MENU, &menu_state);
 	fsm_state_add(&world->state_machine, GAME_PHASE_ASTEROIDS, &asteroid_state);
-	fsm_state_add(&world->state_machine, GAME_PHASE_PONG, &pong_state);
+	fsm_state_add(&world->state_machine, GAME_PHASE_BOSS, &pong_state);
 	fsm_state_add(&world->state_machine, GAME_PHASE_WIN, &win_state);
 	fsm_state_add(&world->state_machine, GAME_PHASE_LOSE, &lose_state);
 
 	fsm_context_set(&world->state_machine, world);
-	fsm_state_set(&world->state_machine, GAME_PHASE_MENU);
+	fsm_state_set(&world->state_machine, GAME_PHASE_BOSS);
 
 	world->score = 0;
 	world->high_score = 0; // TODO: Load from save file
@@ -123,7 +123,7 @@ void world_update(GameWorld *world, float dt) {
 
 	StateID current_state = fsm_state_get(&world->state_machine);
 	fsm_update(&world->state_machine, dt);
-	if (current_state == GAME_PHASE_ASTEROIDS || current_state == GAME_PHASE_PONG) {
+	if (current_state == GAME_PHASE_ASTEROIDS || current_state == GAME_PHASE_BOSS) {
 		if (world->player.entity.active) {
 			player_update(&world->player, &world->weapon_system, dt);
 			weapon_bullets_update(&world->weapon_system, dt);
@@ -149,7 +149,7 @@ void world_draw(GameWorld *world) {
 	}
 
 	StateID current_state = fsm_state_get(&world->state_machine);
-	if (current_state == GAME_PHASE_ASTEROIDS || current_state == GAME_PHASE_PONG) {
+	if (current_state == GAME_PHASE_ASTEROIDS || current_state == GAME_PHASE_BOSS) {
 		player_draw(&world->player);
 		weapon_bullets_draw(&world->weapon_system, world->show_debug);
 		asteroid_system_draw(&world->asteroid_system, world->show_debug);
@@ -160,8 +160,8 @@ void world_draw(GameWorld *world) {
 			DrawRectangleRec(world->boss_health_bar, RED);
 		}
 
-		if (world->show_debug) {
-			DrawRectangleLinesEx(world->player.entity.collision_shape, 1.f, world->disable_collisions ? RED : GREEN);
+		if (world->show_debug && world->player.entity.collision_active) {
+			DrawRectangleLinesEx(world->player.entity.collision_shape, 1.f, GREEN);
 		}
 
 		if (world->show_ui) {
@@ -247,7 +247,7 @@ StateID game_state_menu_update(void *context, float dt) {
 	if (world->fading_out) {
 		world->screen_fade -= dt * 2.0f;
 		if (world->screen_fade <= 0.0f) {
-			return GAME_PHASE_ASTEROIDS;
+			return GAME_PHASE_BOSS;
 		}
 	}
 
@@ -271,26 +271,27 @@ StateID game_state_asteroids_update(void *context, float dt) {
 	asteroid_system_update(&world->asteroid_system, dt);
 
 	if (world->player.entity.active) {
-		for (int a_idx = 0; a_idx < MAX_ASTEROIDS; a_idx++) {
-			Asteroid *a = &asteroid_system->asteroids[a_idx];
-			if (!a->entity.active)
+		for (int asteroid_index = 0; asteroid_index < MAX_ASTEROIDS; asteroid_index++) {
+			Asteroid *asteroid = &asteroid_system->asteroids[asteroid_index];
+
+			if (!asteroid->entity.active || asteroid->entity.collision_active == false || world->player.entity.collision_active == false)
 				continue;
 
-			if (CheckCollisionRecs(world->player.entity.collision_shape, a->entity.collision_shape)) {
+			if (CheckCollisionRecs(world->player.entity.collision_shape, asteroid->entity.collision_shape)) {
 				player_kill(&world->player);
 				return GAME_PHASE_LOSE;
 			}
 		}
 	}
 
-	for (int i = 0; i < MAX_BULLETS; i++) {
-		Bullet *bullet = &world->weapon_system.bullets[i];
+	for (int bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++) {
+		Bullet *bullet = &world->weapon_system.bullets[bullet_index];
 		if (!bullet->entity.active)
 			continue;
 
 		for (int a_idx = 0; a_idx < MAX_ASTEROIDS; a_idx++) {
 			Asteroid *asteroid = &asteroid_system->asteroids[a_idx];
-			if (!asteroid->entity.active)
+			if (!asteroid->entity.active || asteroid->entity.collision_active == false || bullet->entity.collision_active == false)
 				continue;
 
 			entity_sync_collision(&bullet->entity);
@@ -327,7 +328,7 @@ StateID game_state_asteroids_update(void *context, float dt) {
 		}
 
 		if (!any_active)
-			return GAME_PHASE_PONG;
+			return GAME_PHASE_BOSS;
 	}
 
 	return STATE_CHANGE_NONE;
@@ -348,19 +349,19 @@ StateID game_state_pong_update(void *context, float dt) {
 	GameWorld *world = (GameWorld *)context;
 
 	if (boss_encounter_paddle_check_collision(&world->boss, &world->player.entity)) {
-		audio_music_stop(MUSIC_BOSS_PADDLE);
+		audio_music_stop_all();
 		player_kill(&world->player);
 		return GAME_PHASE_LOSE;
 	}
 
-	for (int bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++) {
+	for (uint32_t bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++) {
 		Bullet *bullet = &world->weapon_system.bullets[bullet_index];
 		if (!bullet->entity.active)
 			continue;
 
-		for (int paddle_index = 0; paddle_index < 2; paddle_index++) {
+		for (uint32_t paddle_index = 0; paddle_index < countof(world->boss.paddles); paddle_index++) {
 			Paddle *paddle = &world->boss.paddles[paddle_index];
-			if (paddle->entity.active == false)
+			if (paddle->entity.active == false || paddle->entity.collision_active == false || world->player.entity.collision_active == false)
 				continue;
 
 			entity_sync_collision(&bullet->entity);
@@ -382,8 +383,8 @@ StateID game_state_pong_update(void *context, float dt) {
 	};
 
 	bool boss_dead = true;
-	for (int i = 0; i < 2; i++) {
-		if (world->boss.paddles[i].entity.active) {
+	for (int paddle_index = 0; paddle_index < MAX_PADDLES; paddle_index++) {
+		if (world->boss.paddles[paddle_index].entity.active) {
 			boss_dead = false;
 			break;
 		}
@@ -399,6 +400,7 @@ void game_state_pong_exit(void *context) {
 	GameWorld *world = (GameWorld *)context;
 
 	world->boss = (PaddleEncounter){ 0 };
+	world->boss_health_bar = (Rectangle){ 0 };
 }
 
 // ========================================
@@ -415,7 +417,7 @@ void game_state_win_enter(void *context) {
 		// TODO: Save to file
 	}
 
-	audio_music_stop(MUSIC_BOSS_PADDLE);
+	audio_music_stop(MUSIC_BOSS_PONG);
 	// TODO: Play victory sound/music
 }
 
@@ -456,7 +458,7 @@ void game_state_lose_enter(void *context) {
 	world->screen_fade = 0.0f;
 	world->fading_out = false;
 
-	audio_music_stop(MUSIC_BOSS_PADDLE);
+	audio_music_stop(MUSIC_BOSS_PONG);
 	audio_loop_stop(LOOP_PLAYER_ROCKET);
 }
 
@@ -489,10 +491,10 @@ StateID game_state_lose_update(void *context, float dt) {
 		if (world->screen_fade <= 0.0f) {
 			if (key_pressed == KEY_SPACE) {
 				key_pressed = 0;
-				return GAME_PHASE_ASTEROIDS;
+				return GAME_PHASE_BOSS;
 			} else {
 				key_pressed = 0;
-				return GAME_PHASE_MENU;
+				return GAME_PHASE_BOSS;
 			}
 		}
 	}

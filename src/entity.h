@@ -13,6 +13,7 @@ typedef struct {
 	Vector2 size;
 	float rotation;
 
+    bool collision_active;
 	Rectangle collision_shape;
 
     float bullet_damage;

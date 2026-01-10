@@ -21,6 +21,8 @@ bool32 player_init(Player *player, Texture *texture) {
 
 	player->animation_frame = 0;
 	player->animation_timer = 0.0f;
+
+    player->entity.collision_active = true;
 	player->entity.collision_shape = (Rectangle){ 0, 0, .width = PLAYER_SIZE * .6f, .height = PLAYER_SIZE * .7f };
 
 	player->rotation_speed = 4.5f;
