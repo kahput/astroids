@@ -46,12 +46,11 @@ int main(void) {
 	SetTargetFPS(60);
 	audio_initialize();
 
-	Texture atlas = LoadTexture("assets/sprites/asteroid_sprite.png");
-	Texture paddle_texture = LoadTexture("assets/sprites/boss_paddle.png");
+	Texture atlas = LoadTexture("assets/sprites/atlas.png");
 	Shader flash_shader = LoadShaderFromMemory(NULL, FLASH_SHADER_CODE);
 
 	GameWorld world = { 0 };
-	world_init(&world, &atlas, &paddle_texture, &flash_shader);
+	world_init(&world, &atlas, &flash_shader);
 	SetExitKey(KEY_NULL);
 
 	Color DARK = { 20, 20, 20, 255 };

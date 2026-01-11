@@ -37,27 +37,27 @@ typedef struct {
 	Star stars[MAX_STARS];
 
 	Texture *atlas;
-	Texture *paddle_texture;
 	Shader *white;
 
 	uint32_t score;
-    uint32_t high_score;
+	StateID last_phase;
+	uint32_t high_score;
 
 	float phase_timer;
 	FSM state_machine;
 
-    bool running;
+	bool running;
 
 	Rectangle bar;
 	Rectangle boss_health_bar;
 
-    float screen_fade;
-    bool fading_out;
+	float screen_fade;
+	bool fading_out;
 
 	bool32 disable_collisions;
 	bool32 show_debug, show_ui;
 } GameWorld;
 
-void world_init(GameWorld *world, Texture *atlas, Texture *paddle_tex, Shader *white);
+void world_init(GameWorld *world, Texture *atlas, Shader *white);
 void world_update(GameWorld *world, float dt);
 void world_draw(GameWorld *world);

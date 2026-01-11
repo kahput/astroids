@@ -10,8 +10,8 @@ bool32 weapon_system_init(BulletSystem *system, Texture *texture) {
 	system->base_damage = 1.4f;
 	system->texture = texture;
 
-	for (int i = 0; i < MAX_BULLETS; i++)
-		system->bullets[i].entity.active = false;
+	for (int bullet_index = 0; bullet_index < MAX_BULLETS; bullet_index++)
+		system->bullets[bullet_index].entity.active = false;
 
 	return true;
 }
@@ -33,7 +33,7 @@ bool32 weapon_bullet_spawn(BulletSystem *system, Vector2 spawn_position, float r
 			.velocity = Vector2Scale(direction, speed),
 			.rotation = rotation,
 			.texture = system->texture,
-			.area = { TILE_SIZE * 6, 0, TILE_SIZE, TILE_SIZE },
+			.area = { TILE_SIZE * 5, TILE_SIZE * 4, TILE_SIZE, TILE_SIZE },
 			.size = { 16.f, 32.f },
 			.tint = ORANGE,
 		};

@@ -10,17 +10,17 @@
 #include <raylib.h>
 #include <raymath.h>
 
-void paddle_enterance_enter(void *context);
-StateID paddle_enterance_update(void *context, float dt);
-void paddle_enterance_exit(void *context);
+void paddle_pong_entry_enter(void *context);
+StateID paddle_pong_entry_update(void *context, float dt);
+void paddle_pong_entry_exit(void *context);
 
 void paddle_pong_enter(void *context);
 StateID paddle_pong_update(void *context, float dt);
 void paddle_pong_exit(void *context);
 
-void paddle_split_enter(void *context);
-StateID paddle_split_update(void *context, float dt);
-void paddle_split_exit(void *context);
+void paddle_breakout_entry_enter(void *context);
+StateID paddle_breakout_entry_update(void *context, float dt);
+void paddle_breakout_entry_exit(void *context);
 
 void paddle_breakout_enter(void *context);
 StateID paddle_breakout_update(void *context, float dt);
@@ -31,9 +31,9 @@ StateID paddle_death_update(void *context, float dt);
 void paddle_death_exit(void *context);
 
 enum PaddleState {
-	PADDLE_STATE_ENTERANCE,
+	PADDLE_STATE_PONG_ENTRY,
 	PADDLE_STATE_PONG,
-	PADDLE_STATE_SPLIT,
+	PADDLE_STATE_BREAKOUT_ENTRY,
 	PADDLE_STATE_BREAKOUT,
 	PADDLE_STATE_DEATH,
 
@@ -41,9 +41,9 @@ enum PaddleState {
 };
 
 static const char *stringify_state[PADDLE_STATE_COUNT] = {
-	[PADDLE_STATE_ENTERANCE] = "STATE_ENTERANCE",
+	[PADDLE_STATE_PONG_ENTRY] = "STATE_PONG_ENTRY",
 	[PADDLE_STATE_PONG] = "STATE_PONG",
-	[PADDLE_STATE_SPLIT] = "STATE_SPLIT",
+	[PADDLE_STATE_BREAKOUT_ENTRY] = "STATE_BREAKOUT_ENTRY",
 	[PADDLE_STATE_BREAKOUT] = "STATE_BREAKOUT",
 	[PADDLE_STATE_DEATH] = "STATE_DEATH",
 };
@@ -51,8 +51,8 @@ static const char *stringify_state[PADDLE_STATE_COUNT] = {
 bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *texture) {
 	*encounter = (PaddleEncounter){ 0 };
 	encounter->paddle_texture = texture;
-
-	float max_health = 100.f;
+	encounter->max_health = 200.f;
+	encounter->health = encounter->max_health;
 
 	for (uint32_t paddle_index = 0; paddle_index < 2; ++paddle_index) {
 		Paddle *paddle = &encounter->paddles[paddle_index];
@@ -69,15 +69,15 @@ bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *tex
 		paddle->entity.collision_active = true;
 		paddle->entity.collision_shape = (Rectangle){ 0, 0, paddle->entity.size.x, paddle->entity.size.y };
 
-		paddle->max_health = max_health * .5f;
-		paddle->health = paddle->max_health;
+		// paddle->max_health = max_health * .5f;
+		// paddle->health = paddle->max_health;
 		paddle->flash_timer = 0.0f;
 	}
 
-	StateHandler enterance_state = {
-		.on_enter = paddle_enterance_enter,
-		.on_exit = paddle_enterance_exit,
-		.on_update = paddle_enterance_update,
+	StateHandler pong_entry_state = {
+		.on_enter = paddle_pong_entry_enter,
+		.on_exit = paddle_pong_entry_exit,
+		.on_update = paddle_pong_entry_update,
 	};
 
 	StateHandler pong_state = {
@@ -86,10 +86,10 @@ bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *tex
 		.on_update = paddle_pong_update,
 	};
 
-	StateHandler split_state = {
-		.on_enter = paddle_split_enter,
-		.on_exit = paddle_split_exit,
-		.on_update = paddle_split_update,
+	StateHandler breakout_entry_state = {
+		.on_enter = paddle_breakout_entry_enter,
+		.on_exit = paddle_breakout_entry_exit,
+		.on_update = paddle_breakout_entry_update,
 	};
 
 	StateHandler breakout_state = {
@@ -104,13 +104,13 @@ bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *tex
 		.on_update = paddle_death_update,
 	};
 
-	fsm_state_add(&encounter->state_machine, PADDLE_STATE_ENTERANCE, &enterance_state);
+	fsm_state_add(&encounter->state_machine, PADDLE_STATE_PONG_ENTRY, &pong_entry_state);
 	fsm_state_add(&encounter->state_machine, PADDLE_STATE_PONG, &pong_state);
-	fsm_state_add(&encounter->state_machine, PADDLE_STATE_SPLIT, &split_state);
+	fsm_state_add(&encounter->state_machine, PADDLE_STATE_BREAKOUT_ENTRY, &breakout_entry_state);
 	fsm_state_add(&encounter->state_machine, PADDLE_STATE_BREAKOUT, &breakout_state);
 	fsm_state_add(&encounter->state_machine, PADDLE_STATE_DEATH, &death_state);
 	fsm_context_set(&encounter->state_machine, encounter);
-	fsm_state_set(&encounter->state_machine, PADDLE_STATE_ENTERANCE);
+	fsm_state_set(&encounter->state_machine, PADDLE_STATE_PONG_ENTRY);
 
 	return true;
 }
@@ -140,20 +140,28 @@ void boss_encounter_paddle_update(PaddleEncounter *encounter, Vector2 player_pos
 }
 
 void boss_encounter_paddle_draw(PaddleEncounter *encounter, bool32 show_debug) {
+	for (uint32_t brick_index = 0; brick_index < MAX_BRICKS; ++brick_index) {
+		Entity *brick = &encounter->bricks[brick_index];
+		if (brick->active == false)
+			continue;
+
+		entity_draw(brick);
+
+		if (show_debug) {
+			if (brick->collision_active)
+				DrawRectangleLinesEx(brick->collision_shape, 1.0f, GREEN);
+		}
+	}
+
 	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
 		Paddle *paddle = &encounter->paddles[paddle_index];
 		if (paddle->entity.active == false)
 			continue;
 
-		if (paddle_index >= 2 && paddle->is_brick == false)
-			break;
-
 		entity_draw(&paddle->entity);
 		if (show_debug) {
-			if (paddle->is_brick == false) {
-				DrawLineV(encounter->balls[0].position, encounter->player_position, YELLOW);
-				DrawCircle(paddle->entity.position.x, paddle->target_y, 5, GREEN);
-			}
+			DrawLineV(encounter->balls[0].position, encounter->player_position, YELLOW);
+			DrawCircle(paddle->entity.position.x, paddle->target_y, 5, GREEN);
 
 			DrawCircleV(paddle->entity.position, 3.f, GREEN);
 			DrawRectangleLinesEx(paddle->entity.collision_shape, 1.f, RED);
@@ -206,9 +214,19 @@ void boss_encounter_paddle_draw(PaddleEncounter *encounter, bool32 show_debug) {
 		;
 
 		if (ball->active) {
-			DrawCircleV(ball->position, ball->radius, RED);
+			Rectangle source = { TILE_SIZE * 8, TILE_SIZE, TILE_SIZE + 16, TILE_SIZE + 16 };
 
-			DrawCircleV(ball->position, 3.f, GREEN);
+
+
+			Rectangle dest = { .x = ball->position.x, .y = ball->position.y, 100.f, 100.f};
+			DrawTexturePro(*encounter->paddle_texture, source, dest, (Vector2){50, 50}, 0, WHITE);
+			// DrawCircleV(ball->position, ball->radius, RED);
+			//
+			// DrawCircleV(ball->position, 3.f, GREEN);
+
+            if (show_debug) {
+                DrawCircleLinesV(ball->position, ball->radius, GREEN);
+            }
 		}
 
 		if ((scenario->type & SCENARIO_FLAG_BALL_ENTER) == SCENARIO_FLAG_BALL_ENTER) {
@@ -224,15 +242,15 @@ void boss_encounter_paddle_draw(PaddleEncounter *encounter, bool32 show_debug) {
 	}
 }
 
-void boss_paddle_apply_damage(Paddle *boss, float damage) {
-	boss->flash_timer = 0.1f;
-	boss->health -= damage;
+void boss_paddle_apply_damage(PaddleEncounter *encounter, uint32_t paddle_index, float damage) {
+	encounter->health -= damage;
+	Paddle *boss = &encounter->paddles[paddle_index];
 
-	if (boss->health <= 0.0f) {
-		boss->entity.active = false;
-		audio_sfx_play(SFX_PADDLE_DEATH, 1.0f, true);
+	boss->flash_timer = 0.1f;
+	if (encounter->health <= 0.0f) {
+		fsm_state_set(&encounter->state_machine, PADDLE_STATE_DEATH);
 	} else {
-		if (boss->health <= boss->max_health * .5f && boss->entity.area.y == 0) {
+		if (encounter->health <= encounter->max_health * .5f && boss->entity.area.y == 0) {
 			boss->entity.area.y += TILE_SIZE * 4;
 		}
 
@@ -244,14 +262,14 @@ float boss_encounter_paddle_health_ratio(PaddleEncounter *encounter) {
 	float max_health = 0.0f;
 	float health = 0.0f;
 
-	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
-		Paddle *paddle = &encounter->paddles[paddle_index];
+	// for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
+	// 	Paddle *paddle = &encounter->paddles[paddle_index];
+	//
+	// 	max_health += paddle->max_health;
+	// 	health += paddle->health;
+	// }
 
-		max_health += paddle->max_health;
-		health += paddle->health;
-	}
-
-	return health / max_health;
+	return encounter->health / encounter->max_health;
 }
 
 bool32 boss_encounter_paddle_check_collision(PaddleEncounter *encounter, Entity *player) {
@@ -262,6 +280,41 @@ bool32 boss_encounter_paddle_check_collision(PaddleEncounter *encounter, Entity 
 			entity_sync_collision(&paddle->entity);
 			if (CheckCollisionRecs(player->collision_shape, paddle->entity.collision_shape))
 				return true;
+		}
+	}
+
+	for (uint32_t brick_index = 0; brick_index < MAX_BRICKS; ++brick_index) {
+		Entity *brick = &encounter->bricks[brick_index];
+		if (brick->active == false || brick->collision_active == false)
+			continue;
+
+		entity_sync_collision(player);
+		if (CheckCollisionRecs(player->collision_shape, brick->collision_shape)) {
+			float dx = player->position.x - brick->position.x;
+			float dy = player->position.y - brick->position.y;
+
+			float width_sum = (player->collision_shape.width * .5f) + (brick->collision_shape.width * .5f);
+			float height_sum = (player->collision_shape.height * .5f) + (brick->collision_shape.height * .5f);
+
+			float overlap_x = width_sum - fabsf(dx);
+			float overlap_y = height_sum - fabsf(dy);
+
+			if (overlap_x < overlap_y) {
+				float sign_x = (dx > 0) ? 1.0f : -1.0f;
+				player->position.x += (overlap_x)*sign_x;
+
+				if ((sign_x > 0 && player->velocity.x < 0) || (sign_x < 0 && player->velocity.x > 0))
+					player->velocity.x = 0.0f;
+			} else {
+				float sign_y = (dy > 0) ? 1.0f : -1.0f;
+				player->position.y += (overlap_y)*sign_y;
+
+				if ((sign_y > 0 && player->velocity.y < 0) || (sign_y < 0 && player->velocity.y > 0))
+					player->velocity.y = 0.0f;
+			}
+
+			LOG_INFO("Player should be updated?");
+			entity_sync_collision(player);
 		}
 	}
 
@@ -284,7 +337,7 @@ bool32 boss_encounter_paddle_check_collision(PaddleEncounter *encounter, Entity 
 	return false;
 }
 
-void paddle_enterance_enter(void *context) {
+void paddle_pong_entry_enter(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	encounter->paddles[0].entity.position = (Vector2){ -200, GetScreenHeight() / 2.f };
@@ -309,13 +362,13 @@ void paddle_enterance_enter(void *context) {
 		Ball *ball = &encounter->balls[ball_index];
 		encounter->balls[0].active = false;
 		encounter->balls[0].position = (Vector2){ GetScreenWidth() * 0.5f, GetScreenHeight() * 0.5f };
-		encounter->balls[0].radius = 40.f;
+		encounter->balls[0].radius = 35.f;
 	}
 
 	LOG_INFO("Entering state intro");
 }
 
-StateID paddle_enterance_update(void *context, float dt) {
+StateID paddle_pong_entry_update(void *context, float dt) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	encounter->active_scenario.timer += dt;
@@ -345,7 +398,7 @@ StateID paddle_enterance_update(void *context, float dt) {
 	return STATE_CHANGE_NONE;
 }
 
-void paddle_enterance_exit(void *context) {
+void paddle_pong_entry_exit(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	encounter->paddles[0].entity.collision_active = true;
@@ -389,7 +442,7 @@ StateID paddle_pong_update(void *context, float dt) {
 		Paddle *paddle = &encounter->paddles[paddle_index];
 
 		if (!paddle->entity.active)
-			return PADDLE_STATE_SPLIT; // We know only one died
+			return PADDLE_STATE_BREAKOUT_ENTRY;
 
 		float direction_x = (paddle_index == 0) ? 1.0f : -1.0f;
 		float half_h = paddle->entity.size.y * 0.5f;
@@ -461,15 +514,15 @@ StateID paddle_pong_update(void *context, float dt) {
 
 void paddle_pong_exit(void *context) {}
 
-void paddle_split_enter(void *context) {
+void paddle_breakout_entry_enter(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	audio_music_stop(MUSIC_BOSS_PONG);
-	Paddle *survivor = encounter->paddles[0].entity.active ? &encounter->paddles[0] : &encounter->paddles[1];
-	survivor->entity.collision_active = false;
+	encounter->survivor = encounter->paddles[0].entity.active ? &encounter->paddles[0] : &encounter->paddles[1];
+	encounter->survivor->entity.collision_active = false;
 	encounter->active_scenario = (ScenarioConfig){
-		.type = SCENARIO_FLAG_WARNING | SCENARIO_FLAG_SPLIT,
-		.base_position = survivor->entity.position,
+		.type = SCENARIO_FLAG_WARNING,
+		.base_position = encounter->survivor->entity.position,
 		.timer = 0.0f,
 		.duration = SPLIT_DURATION_SHAKE + SPLIT_DURATION_ROTATE + SPLIT_DURATION_EXIT + SPLIT_DURATION_WARN + SPLIT_DURATION_ENTRY
 	};
@@ -478,35 +531,29 @@ void paddle_split_enter(void *context) {
 	encounter->balls[0].position = (Vector2){ GetScreenWidth() * 0.5f, GetScreenHeight() * 0.5f };
 }
 
-StateID paddle_split_update(void *context, float dt) {
+StateID paddle_breakout_entry_update(void *context, float dt) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
 
 	encounter->active_scenario.timer += dt;
 	float timer = encounter->active_scenario.timer;
 
 	if (timer >= encounter->active_scenario.duration) {
-		for (int paddle_index = 0; paddle_index < MAX_PADDLES; paddle_index++) {
-			Paddle *brick = &encounter->paddles[paddle_index];
+		for (int brick_index = 0; brick_index < MAX_BRICKS; brick_index++) {
+			Entity *brick = &encounter->bricks[brick_index];
 
 			encounter->active_scenario.warnings[0] = (Rectangle){ 0 };
 
-			brick->entity.collision_active = true;
-			brick->entity.collision_shape.width = BRICK_WIDTH;
-			brick->entity.collision_shape.height = BRICK_HEIGHT;
-			entity_sync_collision(&brick->entity);
+			brick->collision_active = true;
+			brick->collision_shape.width = BRICK_WIDTH;
+			brick->collision_shape.height = BRICK_HEIGHT;
+			entity_sync_collision(brick);
 		}
 
 		return PADDLE_STATE_BREAKOUT;
 	}
 
 	// Find the survivor
-	Paddle *survivor =
-		encounter->paddles[0].entity.active
-		? &encounter->paddles[0]
-		: encounter->paddles[1].entity.active
-		? &encounter->paddles[1]
-		: NULL;
-	if (survivor == NULL)
+	if (encounter->survivor == NULL)
 		return PADDLE_STATE_DEATH;
 
 	Vector2 original_position = encounter->active_scenario.base_position;
@@ -517,12 +564,12 @@ StateID paddle_split_update(void *context, float dt) {
 		float shake_x = (sinf(timer * 40.0f) * intensity);
 		float shake_y = (cosf(timer * 35.0f) * intensity);
 
-		survivor->entity.position = (Vector2){
+		encounter->survivor->entity.position = (Vector2){
 			original_position.x + shake_x,
 			original_position.y + shake_y
 		};
 
-		survivor->entity.tint = ColorLerp(WHITE, RED, shake_t);
+		encounter->survivor->entity.tint = ColorLerp(WHITE, RED, shake_t);
 
 		// TODO: Play sound
 	}
@@ -532,35 +579,35 @@ StateID paddle_split_update(void *context, float dt) {
 		float ease = 1.0f - powf(1.0f - rotate_t, 3.0f); // Ease out
 
 		// Reset to original position
-		survivor->entity.position = original_position;
-		survivor->entity.rotation = ease * 90.0f;
+		encounter->survivor->entity.position = original_position;
+		encounter->survivor->entity.rotation = ease * 90.0f;
 
-		survivor->entity.tint = RED;
+		encounter->survivor->entity.tint = RED;
 	}
 
 	else if (timer < SPLIT_DURATION_SHAKE + SPLIT_DURATION_ROTATE + SPLIT_DURATION_EXIT) {
 		float exit_t = (timer - SPLIT_DURATION_SHAKE - SPLIT_DURATION_ROTATE) / SPLIT_DURATION_EXIT;
 		float ease = powf(exit_t, 2.0f);
 
-		float exit_distance = GetScreenHeight() + survivor->entity.size.y;
-		survivor->entity.position = (Vector2){
+		float exit_distance = GetScreenHeight() + encounter->survivor->entity.size.y;
+		encounter->survivor->entity.position = (Vector2){
 			original_position.x,
 			original_position.y - (exit_distance * ease)
 		};
 
-		survivor->entity.rotation = 90.0f;
-		survivor->entity.tint = RED;
+		encounter->survivor->entity.rotation = 90.0f;
+		encounter->survivor->entity.tint = RED;
+
 	}
 
 	else if (timer < SPLIT_DURATION_SHAKE + SPLIT_DURATION_ROTATE + SPLIT_DURATION_EXIT + SPLIT_DURATION_WARN) {
 		audio_sfx_play(SFX_BOSS_WARNING, 1.0f, false);
 		float warn_t = (timer - SPLIT_DURATION_SHAKE - SPLIT_DURATION_ROTATE - SPLIT_DURATION_EXIT) / SPLIT_DURATION_WARN;
 
-		if (warn_t >= .5f) // TODO: Different, more intense music
-			// audio_sfx_play(SFX_BOSS_INTRO, 1.0f, false);
+		if (warn_t >= .5f)
 			audio_music_play(MUSIC_BOSS_BREAKOUT);
 
-		float ball_radius = 40.f;
+		float ball_radius = 30.f;
 		float ball_spacing = 100.f;
 
 		float total_width = (2 * ball_radius) + ((2 - 1) * ball_spacing);
@@ -586,75 +633,73 @@ StateID paddle_split_update(void *context, float dt) {
 		if (entry_t >= .5f) {
 			encounter->active_scenario.warnings[0] = (Rectangle){ 0 };
 		}
-		float ease = 1.0f - powf(1.0f - entry_t, 3.0f); // Ease out (decelerating)
+		float ease = 1.0f - powf(1.0f - entry_t, 3.0f);
 
-		for (int paddle_index = 0; paddle_index < MAX_PADDLES; paddle_index++) {
-			Paddle *brick = &encounter->paddles[paddle_index];
+		float boss_start_y = -encounter->survivor->entity.size.y * 2.f;
+		float boss_target_y = TILE_SIZE * 3.0f;
 
-			int row = 0;
-			int col = 0;
-			int items_in_row = 0;
+		encounter->survivor->entity.position.x = GetScreenWidth() * .5f;
+		encounter->survivor->entity.position.y = boss_start_y + (boss_target_y - boss_start_y) * ease;
 
-			if (paddle_index < 2) {
-				row = 0;
-				col = paddle_index;
-				items_in_row = 2;
-			} else if (paddle_index < 5) {
-				row = 1;
-				col = paddle_index - 2;
-				items_in_row = 3;
-			} else {
-				row = 2;
-				col = paddle_index - 5;
-				items_in_row = 2;
-			}
+		float gap_size = 125.f;
 
+		float screen_center_y = GetScreenHeight() * .5f;
+		float screen_center_x = GetScreenWidth() * .5f;
+
+		float start_y_offset = 40.f;
+
+		for (int brick_index = 0; brick_index < MAX_BRICKS; brick_index++) {
+			Entity *brick = &encounter->bricks[brick_index];
+
+			float total_height = 3 * (BRICK_HEIGHT + BRICK_SPACING_Y);
 			float total_health = 75.f;
 
-			float row_width = (items_in_row * BRICK_WIDTH) + ((items_in_row - 1) * BRICK_SPACING_X);
-			float screen_center = GetScreenWidth() / 2.0f;
-			float row_start_x = screen_center - (row_width / 2.0f);
+			int32_t row = brick_index / 2;
+			uint32_t col = brick_index % 2;
+			uint32_t items_in_row = 2;
 
-			float target_x = row_start_x + (col * (BRICK_WIDTH + BRICK_SPACING_X)) + (BRICK_WIDTH / 2.0f);
-			float start_y = -BRICK_HEIGHT - 50.0f;
-			float target_y = BRICK_FORMATION_Y + (row * (BRICK_HEIGHT + BRICK_SPACING_Y));
+			float spacing_x = (gap_size * (row * 4));
+			spacing_x = spacing_x <= 0.0f ? (gap_size + (BRICK_WIDTH * .5f)) : spacing_x;
 
-			if (brick->is_brick == false) {
-				*brick = (Paddle){ 0 };
-				brick->entity.active = true;
-				brick->is_brick = true;
+			float row_width = (items_in_row * BRICK_WIDTH) + ((items_in_row - 1) * spacing_x);
+			float row_start_x = screen_center_x - (row_width / 2.f);
 
-				brick->entity.position = (Vector2){ target_x, start_y };
+			float target_x = row_start_x + (col * (BRICK_WIDTH + spacing_x)) + (BRICK_WIDTH / 2.f);
+			float target_y = screen_center_y + start_y_offset + ((row ? 0 : 1) * (BRICK_HEIGHT + gap_size));
 
-				brick->entity.size = (Vector2){ BRICK_WIDTH, BRICK_HEIGHT };
-				brick->entity.rotation = 0;
+			float start_x = (target_x < screen_center_x) ? -BRICK_WIDTH * 2.f : GetScreenWidth() + (BRICK_WIDTH * 2.f);
 
-				brick->entity.tint = WHITE;
-				brick->entity.area = (Rectangle){ .x = 0, .y = TILE_SIZE * 4, .width = TILE_SIZE, .height = TILE_SIZE * 4 };
-				brick->entity.texture = encounter->paddle_texture;
+			if (brick->active == false) {
+				*brick = (Entity){ 0 };
+				brick->active = true;
 
-				brick->entity.collision_active = true;
-				brick->entity.collision_shape = (Rectangle){ 0, 0, brick->entity.size.x, brick->entity.size.y };
+				brick->position = (Vector2){ start_x, target_y };
 
-				brick->max_health = total_health / MAX_PADDLES;
-				brick->health = brick->max_health;
+				brick->size = (Vector2){ BRICK_WIDTH, BRICK_HEIGHT };
+				brick->rotation = 0;
 
-				brick->flash_timer = 0.0f;
+				brick->tint = WHITE;
+				// brick->area = (Rectangle){ .x = 0, .y = TILE_SIZE * 4, .width = TILE_SIZE, .height = TILE_SIZE * 4 };
+				// brick->texture = encounter->paddle_texture;
+
+				brick->collision_active = true;
+				brick->collision_shape = (Rectangle){ 0, 0, brick->size.x, brick->size.y };
 			}
 
-			brick->entity.position.y = start_y + (target_y - start_y) * ease;
-			entity_sync_collision(&brick->entity);
+			brick->position.x = start_x + (target_x - start_x) * ease;
+			entity_sync_collision(brick);
 		}
 	}
 
 	return STATE_CHANGE_NONE;
 }
-void paddle_split_exit(void *context) {}
+void paddle_breakout_entry_exit(void *context) {}
 
 void paddle_breakout_enter(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
+	encounter->active_scenario = (ScenarioConfig){ 0 };
 
-	float ball_radius = 40.f;
+	float ball_radius = 30.f;
 	float ball_spacing = 20.f;
 
 	float total_width = (2 * ball_radius) + ((2 - 1) * ball_spacing);
@@ -677,61 +722,14 @@ void paddle_breakout_enter(void *context) {
 		ball->active = true;
 	}
 
-	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index)
-		encounter->paddles[paddle_index].entity.velocity.x = BRICK_SPEED * (GetRandomValue(0, 1) ? -1.f : 1.f);
+	float width = encounter->survivor->entity.collision_shape.height;
+	float height = encounter->survivor->entity.collision_shape.width;
+	encounter->survivor->entity.collision_shape = (Rectangle){ 0, 0, width, height };
+	entity_sync_collision(&encounter->survivor->entity);
 }
 
 StateID paddle_breakout_update(void *context, float dt) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
-
-	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
-		Paddle *paddle = &encounter->paddles[paddle_index];
-		if (paddle->entity.active == false)
-			continue;
-
-		if (paddle->hit_cooldown > 0.0f) {
-			paddle->hit_cooldown -= dt;
-			if (paddle->hit_cooldown < 0.0f)
-				paddle->hit_cooldown = 0.0f;
-		}
-
-		entity_update_physics(&paddle->entity, 1.0f, dt);
-		float half_width = paddle->entity.size.x * .5f;
-		if (paddle->entity.position.x - half_width < 0) {
-			paddle->entity.position.x = half_width; // Snap to boundary
-			paddle->entity.velocity.x = fabsf(paddle->entity.velocity.x); // Force positive
-		} else if (paddle->entity.position.x + half_width > GetScreenWidth()) {
-			paddle->entity.position.x = GetScreenWidth() - half_width;
-			paddle->entity.velocity.x = -fabsf(paddle->entity.velocity.x); // Force negative
-		}
-		entity_sync_collision(&paddle->entity);
-
-		for (uint32_t other_index = 0; other_index < countof(encounter->paddles); ++other_index) {
-			Paddle *other = &encounter->paddles[other_index];
-			if (other->entity.active == false || other == paddle)
-				continue;
-
-			if (CheckCollisionRecs(paddle->entity.collision_shape, other->entity.collision_shape)) {
-				float dx = paddle->entity.position.x - other->entity.position.x;
-				float overlap =
-					(paddle->entity.size.x * 0.5f + other->entity.size.x * 0.5f) - fabsf(dx);
-
-				if (overlap > 0) {
-					float push = overlap * 0.5f;
-					float dir = (dx > 0) ? 1.0f : -1.0f;
-
-					paddle->entity.position.x += push * dir;
-					other->entity.position.x -= push * dir;
-				}
-
-				paddle->entity.velocity.x *= -1;
-				other->entity.velocity.x *= -1;
-
-				entity_sync_collision(&paddle->entity);
-				entity_sync_collision(&other->entity);
-			}
-		}
-	}
 
 	for (uint32_t ball_index = 0; ball_index < countof(encounter->balls); ++ball_index) {
 		Ball *ball = &encounter->balls[ball_index];
@@ -758,35 +756,93 @@ StateID paddle_breakout_update(void *context, float dt) {
 
 			bool hit_this_frame = false;
 
-			for (int brick_index = 0; brick_index < MAX_PADDLES; brick_index++) {
-				Paddle *brick = &encounter->paddles[brick_index];
-				if (!brick->entity.active || !brick->is_brick)
+			for (int brick_index = 0; brick_index < MAX_BRICKS; brick_index++) {
+				Entity *brick = &encounter->bricks[brick_index];
+				if (!brick->active)
 					continue;
 
-				if (CheckCollisionCircleRec(ball->position, ball->radius, brick->entity.collision_shape)) {
-					float dx = ball->position.x - brick->entity.position.x;
-					float dy = ball->position.y - brick->entity.position.y;
+				if (CheckCollisionCircleRec(ball->position, ball->radius, brick->collision_shape)) {
+					float dx = ball->position.x - brick->position.x;
+					float dy = ball->position.y - brick->position.y;
 
 					float abs_dx = fabsf(dx);
 					float abs_dy = fabsf(dy);
 
-					float half_w = brick->entity.size.x * 0.5f;
-					float half_h = brick->entity.size.y * 0.5f;
+					float half_w = brick->collision_shape.width * 0.5f;
+					float half_h = brick->collision_shape.height * 0.5f;
 
 					if (abs_dx > abs_dy) {
 						ball->velocity.x *= -1;
-						ball->position.x = brick->entity.position.x +
+						ball->position.x = brick->position.x +
 							(dx > 0 ? half_w + ball->radius : -half_w - ball->radius);
 					} else {
 						ball->velocity.y *= -1;
-						ball->position.y = brick->entity.position.y +
+						ball->position.y = brick->position.y +
 							(dy > 0 ? half_h + ball->radius : -half_h - ball->radius);
 					}
-
-					// Flash the brick
-					brick->flash_timer = 0.1f;
 				}
 			}
+		}
+	}
+
+	Paddle *survivor = encounter->survivor;
+
+	if (survivor->entity.active) {
+		float half_w = survivor->entity.size.x * 0.5f;
+
+		Ball *target = &encounter->balls[0];
+		for (uint32_t index = 1; index < countof(encounter->balls); ++index) {
+			Ball *ball = &encounter->balls[index];
+			if (ball->position.y < target->position.y)
+				target = ball;
+		}
+
+		Vector2 to_player = Vector2Subtract(encounter->player_position, target->position);
+		to_player = Vector2Normalize(to_player);
+
+		float needed_offset_x = to_player.x / to_player.y;
+		needed_offset_x = Clamp(needed_offset_x, -1.0f, 1.0f);
+		float target_paddle_x = target->position.x - (needed_offset_x * half_w);
+
+		float dist = target_paddle_x - survivor->entity.position.x;
+		float move = 0.0f;
+
+		if (fabsf(dist) > 5.0f) {
+			float dir = (dist > 0) ? 1.0f : -1.0f;
+			move = dir * (PADDLE_MOVE_SPEED * 2.f) * dt;
+
+			if (fabsf(move) > fabsf(dist))
+				move = dist;
+		}
+
+		survivor->entity.position.x += move;
+
+		if (survivor->entity.position.x < half_w)
+			survivor->entity.position.x = half_w;
+		if (survivor->entity.position.x > GetScreenWidth() - half_w)
+			survivor->entity.position.x = GetScreenWidth() - half_w;
+
+		entity_sync_collision(&survivor->entity);
+
+		if (CheckCollisionCircleRec(target->position, target->radius, survivor->entity.collision_shape)) {
+			float offset_x = (target->position.x - survivor->entity.position.x) / half_w;
+
+			LOG_INFO("Survivor.hit_offset_x = %.2f", offset_x);
+			offset_x = clamp(offset_x, -1.0f, 1.0f);
+
+			float current_speed = Vector2Length(target->velocity);
+			current_speed = fminf(current_speed + 50.f, BALL_SPEED_MAX); // Add speed on hit
+
+			// Set new direction
+			// X = Offset (Steering)
+			// Y = 1.0f   (Always bounce DOWN)
+			target->velocity.x = offset_x;
+			target->velocity.y = 1.0f;
+
+			target->velocity = Vector2Scale(Vector2Normalize(target->velocity), current_speed);
+
+			// audio_sfx_play(SFX_PADDLE_HURT, 1.0f, true); // Or hit sound
+			// target->position.y = survivor->entity.position.y + survivor->entity.size.y * 0.5f + target->radius + 1.0f;
 		}
 	}
 
@@ -810,6 +866,11 @@ void paddle_breakout_exit(void *context) {
 
 void paddle_death_enter(void *context) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;
+
+	for (uint32_t paddle_index = 0; paddle_index < countof(encounter->paddles); ++paddle_index) {
+		encounter->paddles[paddle_index].entity.active = false;
+		audio_sfx_play(SFX_PADDLE_DEATH, 1.0f, true);
+	}
 }
 StateID paddle_death_update(void *context, float dt) {
 	PaddleEncounter *encounter = (PaddleEncounter *)context;

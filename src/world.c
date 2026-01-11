@@ -36,27 +36,27 @@ StateID game_state_lose_update(void *context, float dt);
 void game_state_lose_exit(void *context);
 
 static void stars_init(Star *stars, int width, int height) {
-	for (int i = 0; i < MAX_STARS; i++) {
-		stars[i].position = (Vector2){ GetRandomValue(0, width), GetRandomValue(0, height) };
+	for (uint32_t star_index = 0; star_index < MAX_STARS; star_index++) {
+		stars[star_index].position = (Vector2){ GetRandomValue(0, width), GetRandomValue(0, height) };
 		float depth = (float)GetRandomValue(0, 100) / 100.0f;
-		stars[i].speed = clamp(depth, 15.0f, 50.0f);
-		stars[i].size = (depth > 0.8f) ? 3.0f : 1.0f;
+		stars[star_index].speed = clamp(depth, 15.0f, 50.0f);
+		stars[star_index].size = (depth > 0.8f) ? 3.0f : 1.0f;
 		unsigned char b = (unsigned char)(100 + (depth * 155));
-		stars[i].color = (Color){ b, b, b, 255 };
+		stars[star_index].color = (Color){ b, b, b, 255 };
 	}
 }
 
-void world_init(GameWorld *world, Texture *atlas, Texture *paddle_tex, Shader *white) {
+void world_init(GameWorld *world, Texture *atlas, Shader *white) {
 	*world = (GameWorld){ 0 };
 	world->frame = arena_create(MiB(4));
 	world->running = true;
+    world->last_phase = GAME_PHASE_ASTEROIDS;
 
 	world->atlas = atlas;
-	world->paddle_texture = paddle_tex;
 	world->white = white;
 
 	stars_init(world->stars, WINDOW_WIDTH, WINDOW_HEIGHT);
-	weapon_system_init(&world->weapon_system, paddle_tex);
+	weapon_system_init(&world->weapon_system, atlas);
 	player_init(&world->player, atlas);
 
 	world->bar = (Rectangle){ WINDOW_WIDTH * (1 / 6.f), 20.f, (WINDOW_WIDTH * 2) / 3.f, 25.f };
@@ -99,7 +99,7 @@ void world_init(GameWorld *world, Texture *atlas, Texture *paddle_tex, Shader *w
 	fsm_state_add(&world->state_machine, GAME_PHASE_LOSE, &lose_state);
 
 	fsm_context_set(&world->state_machine, world);
-	fsm_state_set(&world->state_machine, GAME_PHASE_BOSS);
+	fsm_state_set(&world->state_machine, GAME_PHASE_MENU);
 
 	world->score = 0;
 	world->high_score = 0; // TODO: Load from save file
@@ -113,11 +113,11 @@ void world_update(GameWorld *world, float dt) {
 	if (IsKeyPressed(KEY_N))
 		world->disable_collisions = !world->disable_collisions;
 
-	for (int i = 0; i < MAX_STARS; i++) {
-		world->stars[i].position.y += world->stars[i].speed * dt;
-		if (world->stars[i].position.y > WINDOW_HEIGHT) {
-			world->stars[i].position.y = -5;
-			world->stars[i].position.x = GetRandomValue(0, WINDOW_WIDTH);
+	for (int star_index = 0; star_index < MAX_STARS; star_index++) {
+		world->stars[star_index].position.y += world->stars[star_index].speed * dt;
+		if (world->stars[star_index].position.y > WINDOW_HEIGHT) {
+			world->stars[star_index].position.y = -5;
+			world->stars[star_index].position.x = GetRandomValue(0, WINDOW_WIDTH);
 		}
 	}
 
@@ -131,7 +131,7 @@ void world_update(GameWorld *world, float dt) {
 		} else {
 			world->player.respawn_timer -= dt;
 			if (world->player.respawn_timer <= 0.0f) {
-				world_init(world, world->atlas, world->paddle_texture, world->white);
+				world_init(world, world->atlas, world->white);
 			}
 		}
 	}
@@ -147,6 +147,9 @@ void world_draw(GameWorld *world) {
 		else
 			DrawPixelV(world->stars[i].position, world->stars[i].color);
 	}
+
+	String score = string_format(&world->frame, "%3d", world->score);
+	DrawText(score.data, 10, 10, 64, RAYWHITE);
 
 	StateID current_state = fsm_state_get(&world->state_machine);
 	if (current_state == GAME_PHASE_ASTEROIDS || current_state == GAME_PHASE_BOSS) {
@@ -209,7 +212,7 @@ float gui_slider(Arena *arena, String label, float value, float min, float max, 
 	DrawRectangleRec(knob_area, RED); // Handle
 	DrawRectangleLinesEx(bar_area, 1, WHITE); // Border
 
-	String value_string = string_format(arena, S("%.2f"), value);
+	String value_string = string_format(arena, "%.2f", value);
 	DrawText(value_string.data, x + 80 + width + 10, y + 5, 10, WHITE);
 
 	return value;
@@ -226,6 +229,8 @@ void game_state_menu_enter(void *context) {
 	world->asteroid_system = (AsteroidSystem){ 0 };
 	world->boss = (PaddleEncounter){ 0 };
 	world->score = 0;
+
+	audio_music_play(MUSIC_MENU);
 }
 
 StateID game_state_menu_update(void *context, float dt) {
@@ -246,8 +251,10 @@ StateID game_state_menu_update(void *context, float dt) {
 
 	if (world->fading_out) {
 		world->screen_fade -= dt * 2.0f;
+		audio_music_set_volume(MUSIC_MENU, world->screen_fade);
 		if (world->screen_fade <= 0.0f) {
-			return GAME_PHASE_BOSS;
+            audio_music_stop(MUSIC_MENU);
+			return GAME_PHASE_ASTEROIDS;
 		}
 	}
 
@@ -263,6 +270,7 @@ void game_state_asteroids_enter(void *context) {
 	GameWorld *world = (GameWorld *)context;
 
 	asteroid_system_init(&world->asteroid_system, world->atlas);
+	audio_music_play(MUSIC_ASTEROID);
 }
 StateID game_state_asteroids_update(void *context, float dt) {
 	GameWorld *world = (GameWorld *)context;
@@ -304,6 +312,7 @@ StateID game_state_asteroids_update(void *context, float dt) {
 				world->score += 100;
 
 				if (asteroid->variant == ASTEROID_VARIANT_LARGE) {
+					asteroid_system->large_count--;
 					asteroid_spawn_split(asteroid_system, asteroid->entity.position, ASTEROID_VARIANT_MEDIUM);
 					asteroid_spawn_split(asteroid_system, asteroid->entity.position, ASTEROID_VARIANT_MEDIUM);
 				} else if (asteroid->variant == ASTEROID_VARIANT_MEDIUM) {
@@ -338,13 +347,16 @@ void game_state_asteroids_exit(void *context) {
 	GameWorld *world = (GameWorld *)context;
 
 	world->asteroid_system = (AsteroidSystem){ 0 };
+	audio_music_stop(MUSIC_ASTEROID);
 }
 
 void game_state_pong_enter(void *context) {
 	GameWorld *world = (GameWorld *)context;
+	world->last_phase = GAME_PHASE_BOSS;
 
-	boss_encounter_paddle_initialize(&world->boss, world->paddle_texture);
+	boss_encounter_paddle_initialize(&world->boss, world->atlas);
 }
+
 StateID game_state_pong_update(void *context, float dt) {
 	GameWorld *world = (GameWorld *)context;
 
@@ -369,7 +381,8 @@ StateID game_state_pong_update(void *context, float dt) {
 			if (CheckCollisionRecs(bullet->entity.collision_shape, paddle->entity.collision_shape) == false)
 				continue;
 
-			boss_paddle_apply_damage(paddle, bullet->damage);
+			boss_paddle_apply_damage(&world->boss, paddle_index, bullet->damage);
+			world->score += 50;
 			bullet->entity.active = false;
 			break;
 		}
@@ -383,7 +396,7 @@ StateID game_state_pong_update(void *context, float dt) {
 	};
 
 	bool boss_dead = true;
-	for (int paddle_index = 0; paddle_index < MAX_PADDLES; paddle_index++) {
+	for (uint32_t paddle_index = 0; paddle_index < countof(world->boss.paddles); paddle_index++) {
 		if (world->boss.paddles[paddle_index].entity.active) {
 			boss_dead = false;
 			break;
@@ -410,6 +423,7 @@ void game_state_win_enter(void *context) {
 	GameWorld *world = (GameWorld *)context;
 	world->screen_fade = 0.0f;
 	world->fading_out = false;
+	world->last_phase = GAME_PHASE_ASTEROIDS;
 
 	// Update high score
 	if (world->score > world->high_score) {
@@ -491,10 +505,10 @@ StateID game_state_lose_update(void *context, float dt) {
 		if (world->screen_fade <= 0.0f) {
 			if (key_pressed == KEY_SPACE) {
 				key_pressed = 0;
-				return GAME_PHASE_BOSS;
+				return world->last_phase;
 			} else {
 				key_pressed = 0;
-				return GAME_PHASE_BOSS;
+				return GAME_PHASE_MENU;
 			}
 		}
 	}
@@ -514,7 +528,7 @@ void draw_menu_screen(GameWorld *world, Color fade) {
 	int center_x = WINDOW_WIDTH / 2;
 	int center_y = WINDOW_HEIGHT / 2;
 
-	const char *title = "ASTEROIDS";
+	const char *title = "Asterong";
 	int title_size = 80;
 	int title_width = MeasureText(title, title_size);
 	DrawText(title, center_x - title_width / 2, center_y - 150, title_size, fade);

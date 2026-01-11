@@ -1,28 +1,29 @@
 #pragma once
 #include "entity.h"
+#include "globals.h"
 
 typedef enum {
 	ASTEROID_VARIANT_LARGE,
 	ASTEROID_VARIANT_MEDIUM,
 	ASTEROID_VARIANT_SMALL,
 
-    ASTEROID_VARIANT_COUNT
+	ASTEROID_VARIANT_COUNT
 } AsteroidVariant;
 
 typedef struct {
 	Entity entity;
 	AsteroidVariant variant;
 
-    Vector2 inital_target;
+	Vector2 inital_target;
 	Vector2 velocity;
 
 	float rotation_speed;
 } Asteroid;
 
-#define MAX_ASTEROIDS 64
-
 typedef struct {
 	Asteroid asteroids[MAX_ASTEROIDS];
+    uint32_t large_count;
+
 	Texture *texture;
 
 	float spawn_timer;

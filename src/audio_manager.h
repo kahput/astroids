@@ -8,10 +8,10 @@ typedef enum {
 
 	SFX_PADDLE_HURT,
 	SFX_PADDLE_DEATH,
-    SFX_PADDLE_HIT,
+	SFX_PADDLE_HIT,
 
 	SFX_BOSS_WARNING,
-    SFX_BOSS_INTRO,
+	SFX_BOSS_INTRO,
 
 	SFX_COUNT
 } SoundID;
@@ -22,8 +22,10 @@ typedef enum {
 } LoopID;
 
 typedef enum {
+	MUSIC_MENU,
+	MUSIC_ASTEROID,
 	MUSIC_BOSS_PONG,
-    MUSIC_BOSS_BREAKOUT,
+	MUSIC_BOSS_BREAKOUT,
 
 	MUSIC_COUNT,
 } MusicID;
@@ -38,6 +40,7 @@ void audio_loop_play(LoopID id);
 void audio_loop_stop(LoopID id);
 
 void audio_music_play(MusicID id);
+void audio_music_set_volume(MusicID id, float volume);
 void audio_music_stop(MusicID id);
 void audio_music_stop_all(void);
 

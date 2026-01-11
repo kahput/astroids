@@ -5,21 +5,17 @@
 #include "fsm.h"
 #include "entity.h"
 #include "globals.h"
+#include <raylib.h>
 
 typedef struct {
 	Entity entity;
-
-	float health;
-	float max_health;
 	float flash_timer;
 
 	uint32_t animation_frame;
 	float animation_timer;
 
+	// DEBUG
 	float target_y;
-
-	bool is_brick;
-    float hit_cooldown;
 } Paddle;
 
 typedef struct {
@@ -28,6 +24,7 @@ typedef struct {
 	Vector2 position;
 	float radius;
 
+	Rectangle area;
 	Vector2 velocity;
 } Ball;
 
@@ -50,8 +47,14 @@ typedef struct {
 } ScenarioConfig;
 
 typedef struct {
-	Paddle paddles[MAX_PADDLES];
-    Entity projectiles[BRICK_MAX_PROJECTILES];
+	float health;
+	float max_health;
+	Paddle paddles[2];
+
+	Paddle *survivor;
+
+	Entity bricks[MAX_BRICKS];
+	Entity projectiles[BRICK_MAX_PROJECTILES];
 
 	FSM state_machine;
 	ScenarioConfig active_scenario;
@@ -66,7 +69,7 @@ bool32 boss_encounter_paddle_initialize(PaddleEncounter *encounter, Texture *tex
 void boss_encounter_paddle_update(PaddleEncounter *boss, Vector2 player_position, float dt);
 void boss_encounter_paddle_draw(PaddleEncounter *encounter, bool32 show_debug);
 
-void boss_paddle_apply_damage(Paddle *boss, float damage);
+void boss_paddle_apply_damage(PaddleEncounter *encounter, uint32_t paddle_index, float damage);
 void boss_paddle_is_alive(Paddle *boss);
 
 float boss_encounter_paddle_health_ratio(PaddleEncounter *encounter);

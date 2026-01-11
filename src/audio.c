@@ -41,6 +41,8 @@ void audio_initialize(void) {
 	audio.loops[LOOP_PLAYER_ROCKET].sound = load_sound("assets/sfx/rocket_loop.wav");
 	audio.loops[LOOP_PLAYER_ROCKET].fade_speed = 5.0f;
 
+    audio.music[MUSIC_MENU] = LoadMusicStream("assets/music/menu_music.wav");
+    audio.music[MUSIC_ASTEROID] = LoadMusicStream("assets/music/asteroid_music.wav");
 	audio.music[MUSIC_BOSS_PONG] = LoadMusicStream("assets/music/boss_music.wav");
 	audio.music[MUSIC_BOSS_BREAKOUT] = LoadMusicStream("assets/music/phase_two_main.wav");
 
@@ -111,6 +113,11 @@ void audio_music_play(MusicID id) {
 void audio_music_stop(MusicID id) {
 	if (id < MUSIC_COUNT && IsMusicStreamPlaying(audio.music[id]) == true)
 		StopMusicStream(audio.music[id]);
+}
+void audio_music_set_volume(MusicID id, float volume) {
+	if (id < MUSIC_COUNT && IsMusicStreamPlaying(audio.music[id]) == true)
+        SetMusicVolume(audio.music[id], volume);
+
 }
 
 void audio_music_stop_all(void) {

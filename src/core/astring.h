@@ -6,42 +6,42 @@
 struct arena;
 
 typedef struct {
-	char* data;
+	char *data;
 	usize length, size;
 } String;
 
 #define S(s) \
-	(String) { .data = (char*)s, .length = sizeof(s) - 1, .size = sizeof(s) }
+	(String) { .data = (char *)s, .length = sizeof(s) - 1, .size = sizeof(s) }
 
 #define FS(s) (uint32_t)(s).length, (s).data
 
 #define STRING_START 0
 #define STRING_END UINT32_MAX
 
-String string_create_from_arena(Arena* arena, usize size);
+String string_create_from_arena(Arena *arena, usize size);
 
 bool32 string_equals(String a, String b);
 // Returns substring start index if true, else -1
 int32_t string_contains(String a, String b);
 
 uint64_t string_hash64(String string);
-String string_duplicate(Arena* arena, String target);
-String string_duplicate_by_length(Arena* arena, String target);
-String string_slice(Arena* arena, String a, uint32_t start, uint32_t length);
-String string_concat(Arena* arena, String head, String tail);
+String string_duplicate(Arena *arena, String target);
+String string_duplicate_by_length(Arena *arena, String target);
+String string_slice(Arena *arena, String a, uint32_t start, uint32_t length);
+String string_concat(Arena *arena, String head, String tail);
 
-String string_insert_at(Arena* arena, String into, String insert, uint32_t index);
-String string_find_and_replace(Arena* arena, String string, String find, String replace);
+String string_insert_at(Arena *arena, String into, String insert, uint32_t index);
+String string_find_and_replace(Arena *arena, String string, String find, String replace);
 
-String string_format(Arena* arena, String format, ...);
+String string_format(Arena *arena, const char *, ...);
 
-String string_directory_from_path(Arena* arena, String path);
-String string_filename_from_path(Arena* arena, String path);
-String string_extension_from_path(Arena* arena, String name);
+String string_directory_from_path(Arena *arena, String path);
+String string_filename_from_path(Arena *arena, String path);
+String string_extension_from_path(Arena *arena, String name);
 
-String string_wrap_cstring(const char* string);
+String string_wrap_cstring(const char *string);
 
-usize cstring_length(const char*);
-usize cstring_nlength(const char*, usize);
+usize cstring_length(const char *);
+usize cstring_nlength(const char *, usize);
 
-char* cstring_null_terminated(Arena* arena, String string);
+char *cstring_null_terminated(Arena *arena, String string);

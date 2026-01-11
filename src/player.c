@@ -4,6 +4,8 @@
 #include "weapon.h"
 #include <raymath.h>
 
+#define PLAYER_SPRITE_OFFSET_X TILE_SIZE * 6
+
 bool32 player_init(Player *player, Texture *texture) {
 	*player = (Player){ 0 };
 
@@ -14,7 +16,7 @@ bool32 player_init(Player *player, Texture *texture) {
 		  .velocity = { 0, 0 },
 		  .size = { .x = PLAYER_SIZE, .y = PLAYER_SIZE },
 		  .rotation = 0,
-		  .area = { 0, 0, TILE_SIZE, TILE_SIZE },
+		  .area = { PLAYER_SPRITE_OFFSET_X, 0, TILE_SIZE, TILE_SIZE },
 		  .tint = WHITE,
 		  .texture = texture }
 	};
@@ -22,7 +24,7 @@ bool32 player_init(Player *player, Texture *texture) {
 	player->animation_frame = 0;
 	player->animation_timer = 0.0f;
 
-    player->entity.collision_active = true;
+	player->entity.collision_active = true;
 	player->entity.collision_shape = (Rectangle){ 0, 0, .width = PLAYER_SIZE * .6f, .height = PLAYER_SIZE * .7f };
 
 	player->rotation_speed = 4.5f;
@@ -41,10 +43,8 @@ void player_update(Player *player, BulletSystem *weapon_system, float dt) {
 	if (!player->entity.active)
 		return;
 
-	// --- 1. COOLDOWNS ---
 	player->info.fire_timer += dt;
 
-	// --- 2. INPUT & PHYSICS ---
 	if (IsKeyDown(KEY_D))
 		player->entity.rotation += player->rotation_speed;
 	if (IsKeyDown(KEY_A))
@@ -61,7 +61,7 @@ void player_update(Player *player, BulletSystem *weapon_system, float dt) {
 		}
 
 		player->animation_timer += dt;
-		if (player->animation_timer >= ANIMATION_SPEED) {
+		if (player->animation_timer >= .05f) {
 			player->animation_frame = (player->animation_frame + 1) % 4;
 			// Keep strictly to frames 1, 2, 3 for thrusting if that's your sprite layout
 			if (player->animation_frame == 0)
@@ -69,7 +69,7 @@ void player_update(Player *player, BulletSystem *weapon_system, float dt) {
 			player->animation_timer = 0.0f;
 		}
 
-		player->entity.area.x = TILE_SIZE * player->animation_frame;
+		player->entity.area.x = PLAYER_SPRITE_OFFSET_X + (TILE_SIZE * player->animation_frame);
 
 		// Audio
 		audio_loop_play(LOOP_PLAYER_ROCKET);
@@ -79,7 +79,7 @@ void player_update(Player *player, BulletSystem *weapon_system, float dt) {
 	} else {
 		// Idle
 		player->animation_frame = 0;
-		player->entity.area.x = 0;
+		player->entity.area.x = PLAYER_SPRITE_OFFSET_X;
 		audio_loop_stop(LOOP_PLAYER_ROCKET);
 	}
 
